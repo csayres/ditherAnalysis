@@ -7,25 +7,27 @@ import pandas
 import seaborn as sns
 import numpy
 from coordio.utils import radec2wokxy
-from findFiberCenter import fitOneSet, _plotOne
 import os
 import socket
 from multiprocessing import Pool
+import sys
 
 from parseConfSummary import parseConfSummary
+from findFiberCenter import fitOneSet, _plotOne
 
-mjd = 60420
+# mjd = 60420
 
 _hostname = socket.gethostname()
+
 if "Conors" in _hostname:
     LOCATION = "local"
     OUT_DIR = os.getcwd()
     CORES = 10
-if "apogee" in _hostname:
+elif "apogee" in _hostname:
     LOCATION = "utah"
     OUT_DIR = "/uufs/chpc.utah.edu/common/home/u0449727/work/ditherAnalysis"
     CORES = 30
-if "sdss5" in _hostname:
+elif "sdss5" in _hostname:
     LOCATION = "mountain"
     OUT_DIR = os.getcwd()
     CORES = 1
@@ -232,7 +234,7 @@ def getDitherTables(mjd, site):
 
     dfList = []
     for bossExpNum in bossExpNums:
-        df = getBossFlux(mjd, bossExpNum)
+        df = getBossFlux(mjd, site, bossExpNum)
         dfList.append(df)
 
     dfBoss = pandas.concat(dfList)
@@ -494,7 +496,6 @@ def plotDitherPSFs():
             plt.close("all")
         # import pdb; pdb.set_trace()
 
-
 def plot_zps():
     df = pandas.read_csv("allGFAMatches.csv")
     df = df[["gfaNum", "taiMid", "gfaImgNum", "zp"]]
@@ -511,6 +512,7 @@ def plotFiberCircle(xCen, yCen):
     xs = radius * numpy.cos(thetas) + xCen
     ys = radius * numpy.sin(thetas) + yCen
     plt.plot(xs,ys,'-r', lw=1)
+
 
 def plotFluxScatter(df):
     for name, group in df.groupby(["camera", "configID"]):
@@ -547,9 +549,13 @@ def plotFluxScatter(df):
 
 
 if __name__ == "__main__":
+    mjd = int(sys.argv[1])
+    site = sys.argv[2].lower()
+    getDitherTables(mjd, site)
+
     # plotDitherPSFs()
     # plot_zps()
-    getDitherTables(mjd)
+    #
     # dfOut = computeWokCoords(
     #     pandas.read_csv("dither_gfa_%i.csv"%mjd),
     #     pandas.read_csv("dither_boss_%i.csv"%mjd),
