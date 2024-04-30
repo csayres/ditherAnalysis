@@ -103,6 +103,9 @@ def getGFATables(mjd, site):
         ff = fits.open(f)
         toks = f.split("-")
 
+        if "coordio" not in ff[1].header["SOLVMODE"]:
+            continue
+
         offra = ff[1].header["OFFRA"]
         offdec = ff[1].header["OFFDEC"]
         offpa = ff[1].header["AOFFPA"]
