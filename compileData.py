@@ -31,6 +31,10 @@ elif "sdss5" in _hostname:
     LOCATION = "mountain"
     OUT_DIR = os.getcwd()
     CORES = 1
+elif "mako" == _hostname:
+    LOCATION = "mako"
+    OUT_DIR = os.getcwd()
+    CORES = 26
 else:
     raise RuntimeError("unrecoginzed computer, don't know where data is")
 
@@ -41,6 +45,8 @@ def getGFAFiles(mjd, site, location=LOCATION):
         glbstr = "/Volumes/futa/%s/data/gcam/%i/proc*.fits"%(site,mjd)
     elif location == "mountain":
         glbstr = glbstr = "/data/gcam/%i/proc*.fits"%(mjd)
+    elif location == "mako":
+        glbstr = "/data/gcam/%s/%i/proc*.fits"%(site,mjd)
     else:
         # utah
         glbstr = "/uufs/chpc.utah.edu/common/home/sdss50/sdsswork/data/gcam/%s/%i/proc*.fits"%(site,mjd)
@@ -54,6 +60,8 @@ def getBOSSPath(mjd, site, location=LOCATION):
         bossPath = "/Volumes/futa/%s/data/boss/sos/%i/dither"%(site, mjd)
     elif location == "mountain":
         bossPath = "/data/boss/sos/%i/dither"%(mjd)
+    elif location == "mako":
+        bossPath = "/data/boss/sos/%s/%i/dither"%(site,mjd)
     else:
         # utah
         bossPath = "/uufs/chpc.utah.edu/common/home/sdss50/sdsswork/data/boss/sos/%s/%i/dither"%(site,mjd)
@@ -72,6 +80,8 @@ def getFVCPath(mjd, site, imgNum, location=LOCATION):
         fvcPath = "/Volumes/futa/%s/data/fcam/%i/proc-fimg-%s-%s.fits"%(site, mjd, camname, imgNumStr)
     elif location == "mountain":
         fvcPath = "/data/fcam/%i/proc-fimg-%s-%s.fits"%(mjd, camname, imgNumStr)
+    elif location == "mako":
+        fvcPath = "/data/fcam/%s/%i/proc-fimg-%s-%s.fits"%(site, mjd, camname, imgNumStr)
     else:
         # utah
         fvcPath = "/uufs/chpc.utah.edu/common/home/sdss50/sdsswork/data/fcam/%s/%i/proc-fimg-%s-%s.fits"%(site, mjd, camname, imgNumStr)
@@ -88,6 +98,8 @@ def getConfSummPath(configID, site, location=LOCATION):
         confPath = "confSummaryF-%i.par"%configID
     elif location == "mountain":
         confPath = "/home/sdss5/software/sdsscore/main/%s/summary_files/%s/confSummaryF-%i.par"%(site, confStr, configID)
+    elif location == "mako":
+        confPath = "confSummaryFiles/confSummaryF-%i.par"%configID
     else:
         # utah
         confPath = "/uufs/chpc.utah.edu/common/home/sdss50/software/git/sdss/sdsscore/main%s/summary_files/%s/confSummaryF-%i.par"%(site, confStr, configID)
@@ -264,7 +276,7 @@ def getDitherTables(mjd, site):
 
 def _fluxNormGFA(dfGFA, plot=False):
     # adds a few normalization columns for flux measured
-    dfGFA = dfGFA[dfGFA.aperflux/dfGFA.aperfluxerr > 400]
+    dfGFA = dfGFA[dfGFA.aperflux/dfGFA.aperfluxerr > 400].reset_index(drop=True)
     # convert to flux / sec in case of variable gfa exptimes
     dfGFA["aperflux"] = dfGFA.aperflux / dfGFA.gfaExptime
     fluxRate = dfGFA[["source_id", "aperflux"]].groupby("source_id").median().reset_index()
@@ -287,7 +299,7 @@ def _fluxNormGFA(dfGFA, plot=False):
     return dfGFA
 
 
-def computeWokCoords(site, mjd):
+def computeWokCoords(mjd, site):
     # dfGFA = pandas.read_csv("dither_gfa_%i.csv"%mjd)
     newDir = OUT_DIR + "/" + str(mjd)
     dfGFA = pandas.read_csv(newDir + "/dither_gfa_%i_%s.csv"%(mjd, site))
@@ -377,7 +389,7 @@ def computeWokCoords(site, mjd):
     df = pandas.concat(dfList)
     df["site"] = site
 
-    df.to_csv(newDir + "/dither_merged_%i_%s"%(mjd, site), index=False)
+    df.to_csv(newDir + "/dither_merged_%i_%s.csv"%(mjd, site), index=False)
 
 
     # plt.figure()
@@ -391,10 +403,10 @@ def fitOne(name):
     csvName = OUT_DIR + "/%i"%mjd +"/ditherFit_%i_%i_%s_%i_%s.csv"%name
     if os.path.exists(csvName):
         return
-    print("---------\non %i %i %s\n------"%name)
+    print("---------\non %i %i %s\n------"%(configID, fiberId, camera))
 
     df = pandas.read_csv(OUT_DIR + "/%i/dither_merged_%i_%s.csv"%(mjd,mjd,site))
-    group = df[(df.configID==name[0]) & (df.fiberID==name[1]) & (df.camera==name[2])]
+    group = df[(df.configID==name[0]) & (df.fiberID==name[1]) & (df.camera==name[2])].reset_index(drop=True)
     xStar = group.xWokStarPredict.to_numpy()
     yStar = group.yWokStarPredict.to_numpy()
     dxStar = group.dxWokStar.to_numpy()
@@ -423,7 +435,7 @@ def fitOne(name):
     plt.close("all")
 
 
-def fitFiberCenters(site, mjd): #df):
+def fitFiberCenters(mjd, site): #df):
     df = pandas.read_csv(OUT_DIR + "/%i/dither_merged_%i_%s.csv"%(mjd,mjd,site))
     groupNames = []
     for name, group in df.groupby(["configID", "fiberID", "camera", "mjd", "site"]):
@@ -555,6 +567,8 @@ if __name__ == "__main__":
     mjd = int(sys.argv[1])
     site = sys.argv[2].lower()
     getDitherTables(mjd, site)
+    computeWokCoords(mjd, site)
+    fitFiberCenters(mjd, site)
 
     # plotDitherPSFs()
     # plot_zps()
