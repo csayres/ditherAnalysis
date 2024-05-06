@@ -2,11 +2,13 @@ from astropy.io import fits
 import glob
 from astropy.table import Table
 from astropy.time import Time, TimeDelta
+from astropy.wcs import WCS
 import matplotlib.pyplot as plt
 import pandas
 import seaborn as sns
 import numpy
 from coordio.utils import radec2wokxy
+from coordio.guide import SolvePointing
 import os
 import socket
 from multiprocessing import Pool
@@ -16,6 +18,8 @@ from parseConfSummary import parseConfSummary
 from findFiberCenter import fitOneSet, _plotOne
 
 # mjd = 60420
+import warnings
+warnings.filterwarnings("ignore", message="Warning! Coordinate far off telescope optical axis conversion may be bogus")
 
 _hostname = socket.gethostname()
 
@@ -35,21 +39,27 @@ elif "mako" == _hostname:
     LOCATION = "mako"
     OUT_DIR = os.getcwd()
     CORES = 26
+    gaia_connection_string = "postgresql://sdss@localhost:5433/sdss5db"
+    gaia_connection_table = "catalogdb.gaia_dr2_source_g19_2"
 else:
     raise RuntimeError("unrecoginzed computer, don't know where data is")
 
 
-def getGFAFiles(mjd, site, location=LOCATION):
+def getGFAFiles(mjd, site, imgNum=None, location=LOCATION):
     site = site.lower()
+    if imgNum is None:
+        imgNumStr = ""
+    else:
+        imgNumStr = "-" + str(imgNum).zfill(4)
     if location == "local":
-        glbstr = "/Volumes/futa/%s/data/gcam/%i/proc*.fits"%(site,mjd)
+        glbstr = "/Volumes/futa/%s/data/gcam/%i/proc*%s.fits"%(site,mjd,imgNumStr)
     elif location == "mountain":
-        glbstr = glbstr = "/data/gcam/%i/proc*.fits"%(mjd)
+        glbstr = glbstr = "/data/gcam/%i/proc*%s.fits"%(mjd,imgNumStr)
     elif location == "mako":
-        glbstr = "/data/gcam/%s/%i/proc*.fits"%(site,mjd)
+        glbstr = "/data/gcam/%s/%i/proc*%s.fits"%(site,mjd, imgNumStr)
     else:
         # utah
-        glbstr = "/uufs/chpc.utah.edu/common/home/sdss50/sdsswork/data/gcam/%s/%i/proc*.fits"%(site,mjd)
+        glbstr = "/uufs/chpc.utah.edu/common/home/sdss50/sdsswork/data/gcam/%s/%i/proc*%s.fits"%(site,mjd,imgNumStr)
 
     return glob.glob(glbstr)
 
@@ -110,16 +120,25 @@ def getConfSummPath(configID, site, location=LOCATION):
 def getGFATables(mjd, site):
     site = site.lower()
     files = getGFAFiles(mjd, site)
+
+    reprocSet = set()
+
     dfList = []
     for f in files:
         ff = fits.open(f)
         toks = f.split("-")
-
-        if "coordio" not in ff[1].header["SOLVMODE"]:
-            continue
-
         offra = ff[1].header["OFFRA"]
         offdec = ff[1].header["OFFDEC"]
+        imgNum = int(toks[-1].strip(".fits"))
+
+        if offra == 0 and offdec == 0:
+            continue
+
+        if "coordio" not in ff[1].header["SOLVMODE"]:
+            reprocSet.add(imgNum)
+            continue
+
+
         offpa = ff[1].header["AOFFPA"]
         bossExp = ff[1].header["SPIMGNO"]
 
@@ -129,15 +148,11 @@ def getGFATables(mjd, site):
         else:
             gfaNum = int(toks[-2].strip("gfa").strip("s"))
 
-        if bossExp == -999:
-            continue
-        if offra == 0 and offdec == 0:
-            continue
 
         t = Table(ff["GAIAMATCH"].data).to_pandas()
         # table has zps for all gfas
         t = t[t.gfaNum == gfaNum].reset_index(drop=True)
-        t["gfaImgNum"] = int(toks[-1].strip(".fits"))
+        t["gfaImgNum"] = imgNum
         t["configID"] = ff[1].header["CONFIGID"]
         t["offra"] = offra
         t["offdec"] = offdec
@@ -155,13 +170,109 @@ def getGFATables(mjd, site):
         t["file_path"] = f
         t["gfaDateObs"] = ff[1].header["DATE-OBS"]
         t["gfaExptime"] = ff[1].header["EXPTIMEN"]
-        dfList.append(t)
 
-    dfGFA = pandas.concat(dfList)
+        t["guideErrRA"] = ff[1].header["DELTARA"]
+        t["guideErrRA"] = ff[1].header["DELTADEC"]
+        t["guideErrRA"] = ff[1].header["DELTAROT"]
+        t["guideRMS"] = ff[1].header["SOL_GRMS"]
+        t["guideFitRMS"] = ff[1].header["SOL_FRMS"]
+        t["guideFWHM"] = ff[1].header["FWHM"]
+
+        dfList.append(t)
+        ff.close()
+
     # drop camera column it's reduntant with gfaNum
     # and conflicts with boss camera columns
-    dfGFA = dfGFA.drop("camera", axis=1)
+
     # dfGFA.to_csv("dither_gfa_%s_%i.csv"%(site,mjd))
+    print("reprocessing gimgs", reprocSet)
+    for imgNum in list(reprocSet):
+        imgs = getGFAFiles(mjd,site,imgNum)
+        sp = None
+        for img in imgs:
+            ff = fits.open(img)
+            if sp is None:
+                sp = SolvePointing(
+                    raCen=ff[1].header["RAFIELD"],
+                    decCen=ff[1].header["DECFIELD"],
+                    paCen=ff[1].header["FIELDPA"],
+                    offset_ra=ff[1].header["AOFFRA"],
+                    offset_dec=ff[1].header["AOFFDEC"],
+                    offset_pa=ff[1].header["AOFFPA"],
+                    db_conn_st=gaia_connection_string,
+                    db_tab_name=gaia_connection_table
+                )
+            wcs = None
+            if ff[1].header["SOLVED"]:
+                wcs = WCS(ff[1].header)
+            sp.add_gimg(
+                img,
+                Table(ff["CENTROIDS"].data).to_pandas(),
+                wcs,
+                ff[1].header["GAIN"]
+            )
+            ff.close()
+
+        print("n wcs", len(sp.gfaWCS))
+        if len(sp.gfaWCS) < 2:
+            # skip need at least 2 wcs solns for
+            # coordio solve
+            print("skipping gimg", imgNum)
+            continue
+
+        sp.solve()
+        for img in imgs:
+            ff = fits.open(img)
+            toks = img.split("-")
+            offra = ff[1].header["OFFRA"]
+            offdec = ff[1].header["OFFDEC"]
+            imgNum = int(toks[-1].strip(".fits"))
+
+            offpa = ff[1].header["AOFFPA"]
+
+            if site == "apo":
+                gfaNum = int(toks[-2].strip("gfa").strip("n"))
+            else:
+                gfaNum = int(toks[-2].strip("gfa").strip("s"))
+
+            # table has zps for all gfas
+            t = sp.matchedSources[sp.matchedSources.gfaNum == gfaNum].reset_index(drop=True)
+            t["gfaImgNum"] = imgNum
+            t["configID"] = ff[1].header["CONFIGID"]
+            t["offra"] = offra
+            t["offdec"] = offdec
+            t["offpa"] = offpa
+            t["bossExpNum"] = -999
+            t["file_path"] = img
+            t["gfaDateObs"] = ff[1].header["DATE-OBS"]
+            t["gfaExptime"] = ff[1].header["EXPTIMEN"]
+            t["guideFWHM"] = ff[1].header["FWHM"]
+
+
+            t["taiMid"] = sp.obsTimeRef.mjd * 24 * 60 * 60
+            t["SOL_RA"] = sp.raCenMeas
+            t["SOL_DEC"] = sp.decCenMeas
+            t["SOL_PA"] = sp.paCenMeas
+            t["SOL_SCL"] = sp.scaleMeas
+            t["SOL_ALT"] = sp.altCenMeas
+            t["SOL_AZ"] = sp.azCenMeas
+            t["SOLVMODE"] = "coordio-reproc"
+
+            t["guideErrRA"] = sp.delta_ra
+            t["guideErrRA"] = sp.delta_dec
+            t["guideErrRA"] = sp.delta_rot
+            t["guideRMS"] = sp.guide_rms
+            t["guideFitRMS"] = sp.fit_rms
+
+            # t["FWHM_FIT"] = ff[1].header["FWHM_FIT"]
+            dfList.append(t)
+            ff.close()
+
+            # print(wcs)
+            # import pdb; pdb.set_trace()
+
+    dfGFA = pandas.concat(dfList)
+    dfGFA = dfGFA.drop("camera", axis=1)
     return dfGFA
 
 
@@ -192,8 +303,12 @@ def getBossFlux(mjd, site, expNum):
             df["fiberID"] = df.fiber
             df["bossExpNum"] = expNum
             df["mjd"] = mjd
-
-            keepCols = ["bossExpNum", "fiberID", "mjd", "lambdaCen", "camera", "spectroflux", "spectroflux_ivar", "objtype"]
+            df["bossExptime"] = df.exptime
+            df["bossExpMid"] = Time(df.mjd_obs, format="mjd", scale="tai").mjd * 24 * 60 * 60
+            df["bossExpStart"] = df.bossExpMid - df.exptime/2
+            df["bossExpEnd"] = df.bossExpMid + df.exptime/2
+            df["configID"] = ff[0].header["CONFIGID"]
+            keepCols = ["configID", "bossExpNum", "fiberID", "mjd", "lambdaCen", "camera", "spectroflux", "spectroflux_ivar", "objtype", "bossExptime", "bossExpStart", "bossExpEnd"]
             df = df[keepCols]
         dfList.append(df)
 
@@ -233,7 +348,7 @@ def getFVCData(mjd, site, expNum):
 def getDitherTables(mjd, site):
     site = site.lower()
     dfGFA = getGFATables(mjd, site)
-    # dfGFA = pandas.read_csv("dither_gfa_%i.csv"%mjd)
+
     configIDs = list(set(dfGFA.configID))
     dfList = []
 
@@ -244,8 +359,16 @@ def getDitherTables(mjd, site):
     dfConfSumm = pandas.concat(dfList)
 
     # get spectroflux data
+    # get all boss data for this mjd
+    # then filter out exposures that don't belong
+    bossPath = getBOSSPath(mjd, site)
+    allExps = glob.glob(bossPath + "/ditherBOSS*.fits")
+    bossExpNums = set()
+    for exp in allExps:
+        expNum = int(exp.split("-")[1])
+        bossExpNums.add(expNum)
     # import pdb; pdb.set_trace()
-    bossExpNums = list(set(dfGFA.bossExpNum))
+    bossExpNums = list(bossExpNums)
 
     dfList = []
     for bossExpNum in bossExpNums:
@@ -253,6 +376,47 @@ def getDitherTables(mjd, site):
         dfList.append(df)
 
     dfBoss = pandas.concat(dfList)
+    print("len boss before", len(dfBoss))
+    # find the configs that were dithered
+    dfBoss = dfBoss[dfBoss.configID.isin(configIDs)].reset_index(drop=True)
+    print("len boss after", len(dfBoss))
+
+
+    # now only keep GFA exposures taken during a boss exposure
+    # forget about the boss image number from the header
+    # need to double check that this is valid for LCO as well
+    dfList = []
+    for gfaImgNum, gfaGroup in dfGFA.groupby("gfaImgNum"):
+        # gfaGroup["bossExpNum"] = -999
+        for bossExpNum, bossGroup in dfBoss.groupby("bossExpNum"):
+            gfaMid = numpy.mean(gfaGroup.taiMid.to_numpy())
+            bossStart = numpy.mean(bossGroup.bossExpStart.to_numpy())
+            bossEnd = numpy.mean(bossGroup.bossExpEnd.to_numpy())
+            # bossStart -= 60 # this is found as a descrepancy between ditherBOSS mjd_obs column and DATE-OBS in the raw spectro header
+            # bossEnd -= 60
+            _bossExpNum = gfaGroup.bossExpNum.iloc[0]
+            # if bossExpNum == _bossExpNum:
+            #     print("mjd", mjd, bossExpNum, gfaGroup.gfaImgNum.iloc[0], gfaGroup.gfaDateObs.iloc[0])
+            #     print(bossExpNum, bossStart, gfaMid-bossStart)
+            #     import pdb; pdb.set_trace()
+                # import pdb; pdb.set_trace()
+            if gfaMid > bossStart and gfaMid < bossEnd:
+                # warning over writing bossExpNum
+                # as reported in gfa image header
+                # instead relying on time-matching
+                gfaGroup["bossExpNum"] = bossExpNum
+                dfList.append(gfaGroup)
+                # print("matched", gfaImgNum, bossExpNum, _bossExpNum)
+
+    # # print("len gfa before", len(dfGFA))
+    dfGFA = pandas.concat(dfList)
+    # bossExpNums = list(set(dfBoss.bossExpNum))
+    # dfGFA = dfGFA[dfGFA.bossExpNum.isin(bossExpNums)]
+
+    # import pdb; pdb.set_trace()
+    # print("len gfa after", len(dfGFA))
+
+    # import pdb; pdb.set_trace()
 
     # remove gfa exposures that don't match boss exps
     # dfGFA = dfGFA[dfGFA.bossExpNum.isin(list(set(dfBoss.bossExpNum)))]
@@ -307,13 +471,13 @@ def computeWokCoords(mjd, site):
     dfBoss = pandas.read_csv(newDir + "/dither_boss_%i_%s.csv"%(mjd, site))
     dfFVC = pandas.read_csv(newDir + "/dither_fvc_%i_%s.csv"%(mjd, site))
 
-    dfGFA = _fluxNormGFA(dfGFA)
+    # dfGFA = _fluxNormGFA(dfGFA)
     # just need summary (eg header info) from each gfa exposure
     dfGFA = dfGFA.groupby(["mjd", "gfaImgNum"]).first().reset_index()
 
     # dfBoss = pandas.read_csv("dither_boss_%i.csv"%mjd)
 
-    df = dfBoss.merge(dfGFA, on=["mjd", "bossExpNum"])
+    df = dfBoss.merge(dfGFA, on=["mjd", "bossExpNum", "configID"])
     # average gfa info over the boss exposure
 
     df = df.merge(dfConfSumm, on=["mjd", "configID", "fiberID"], suffixes=("_gfa", "_conf")).reset_index()
