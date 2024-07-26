@@ -10,7 +10,7 @@ from coordio.transforms import FVCTransformAPO
 from astropy.io import fits
 from astropy.table import Table
 
-cp = sns.color_palette()
+cp = sns.color_palette("husl", 11)
 POLIDS=numpy.array([0, 1, 2, 3, 4, 5, 6, 9, 20, 27, 28, 29, 30])
 RMAX = 310
 
@@ -81,9 +81,10 @@ def plotOne(df, xCol,yCol,dxCol,dyCol,xlabel,ylabel):
     plt.ylabel(ylabel)
 
 
-def plotAll():
+def plotAll(mjd=None):
     df = pandas.read_csv("ditherFit_all_merged.csv")
-    # df = df[df.mjd==60365]
+    if mjd is not None:
+        df = df[df.mjd==mjd]
     print(set(df.fvcIPA))
     nConfigs = len(set(df.configID))
 
@@ -164,8 +165,8 @@ def plotAll():
 
 
 
-    plt.show()
-    import pdb; pdb.set_trace()
+    # plt.show()
+    # import pdb; pdb.set_trace()
 
 
 
@@ -248,8 +249,8 @@ def plotAll():
 
 
 
-    plt.show()
-    import pdb; pdb.set_trace()
+    # plt.show()
+    # import pdb; pdb.set_trace()
 
 
 def plotFVCdistortion():
@@ -673,6 +674,13 @@ def plotReprocessFVC():
 
 def plotPAvsDec():
     df = pandas.read_csv("ditherFit_all_merged.csv")
+    plt.figure()
+    plt.plot(df.SOL_PA, df.SOL_DEC, '.', ms=10)
+    plt.ylabel("DEC (deg)")
+    plt.xlabel("PA (deg)")
+    plt.show()
+
+
     import pdb; pdb.set_trace()
 
 
@@ -684,8 +692,10 @@ def plotPAvsDec():
 if __name__ == "__main__":
 
     # merge_all()
-    # plotAll()
+    plotAll()
+    plotAll(mjd=60448)
+    plt.show()
     # plotFVCdistortion()
     # reprocessFVC()
     # plotReprocessFVC()
-    plotPAvsDec()
+    # plotPAvsDec()
