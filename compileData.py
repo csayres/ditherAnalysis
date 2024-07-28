@@ -31,6 +31,8 @@ elif "apogee" in _hostname:
     LOCATION = "utah"
     OUT_DIR = "/uufs/chpc.utah.edu/common/home/u0449727/work/ditherAnalysis"
     CORES = 30
+    gaia_connection_string = "postgresql://sdss_user@operations.sdss.org/sdss5db"
+    gaia_connection_table = "catalogdb.gaia_dr2_source"
 elif "sdss5" in _hostname:
     LOCATION = "mountain"
     OUT_DIR = os.getcwd()
@@ -103,6 +105,7 @@ def getConfSummPath(configID, site, location=LOCATION):
     site = site.lower()
 
     confStr = str(configID).zfill(6)[:-2] + "XX"
+    confStr2 = str(configID).zfill(6)[:-3] + "XXX"
 
     if location == "local":
         confPath = "confSummaryF-%i.par"%configID
@@ -112,7 +115,7 @@ def getConfSummPath(configID, site, location=LOCATION):
         confPath = "confSummaryFiles/confSummaryF-%i.par"%configID
     else:
         # utah
-        confPath = "/uufs/chpc.utah.edu/common/home/sdss50/software/git/sdss/sdsscore/main%s/summary_files/%s/confSummaryF-%i.par"%(site, confStr, configID)
+        confPath = "/uufs/chpc.utah.edu/common/home/sdss50/software/git/sdss/sdsscore/main%s/summary_files/%s/%s/confSummaryF-%i.par"%(site, confStr2, confStr, configID)
 
     return confPath
 
