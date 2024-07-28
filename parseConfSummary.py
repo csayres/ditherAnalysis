@@ -5,6 +5,8 @@ def parseFiberMapLine(line):
     line = line.strip("\n")
     toks = line.replace("{", "").replace("}", "").split()
 
+    # todo: parse these names from the file
+    # rather than hardcode them in
     cols = [
         "FIBERMAP",
         "positionerId",
@@ -29,6 +31,10 @@ def parseFiberMapLine(line):
         "parallax",
         "ra",
         "dec",
+        "double ra_observed",
+        "double dec_observed",
+        "double alt_observed",
+        "double az_observed",
         "lambda_design",
         "lambda_eff",
         "coord_epoch",
