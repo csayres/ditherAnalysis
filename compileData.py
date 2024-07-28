@@ -115,7 +115,7 @@ def getConfSummPath(configID, site, location=LOCATION):
         confPath = "confSummaryFiles/confSummaryF-%i.par"%configID
     else:
         # utah
-        confPath = "/uufs/chpc.utah.edu/common/home/sdss50/software/git/sdss/sdsscore/main%s/summary_files/%s/%s/confSummaryF-%i.par"%(site, confStr2, confStr, configID)
+        confPath = "/uufs/chpc.utah.edu/common/home/sdss50/software/git/sdss/sdsscore/main/%s/summary_files/%s/%s/confSummaryF-%i.par"%(site, confStr2, confStr, configID)
 
     return confPath
 
