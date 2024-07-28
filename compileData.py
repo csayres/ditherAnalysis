@@ -341,8 +341,9 @@ def getFVCData(mjd, site, expNum):
     ptm["fvcTransX"] = ff[1].header["FVC_TRAX"]
     ptm["fvcTransY"] = ff[1].header["FVC_TRAY"]
     ptm["fvcIPA"] = ff[1].header["IPA"]
-    ptm["fvcALT"] = ff[1].header["ALT"]
-    ptm["fvcAZ"] = ff[1].header["AZ"]
+    if site.lower() == "apo":
+        ptm["fvcALT"] = ff[1].header["ALT"]
+        ptm["fvcAZ"] = ff[1].header["AZ"]
 
     # import pdb; pdb.set_trace()
     return ptm
