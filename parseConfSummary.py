@@ -14,6 +14,7 @@ def parseFiberMapLine(line):
         "on_target",
         "valid",
         "decollided",
+        "too",
         "xwok",
         "ywok",
         "zwok",
