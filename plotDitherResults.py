@@ -52,6 +52,8 @@ def fitZBs(x,y,dx,dy):
     return zdx, zdy
 
 def plotOne(df, xCol,yCol,dxCol,dyCol,xlabel,ylabel):
+    site = str(list(set(df.site)))
+    mjds = str(list(set(df.mjd)))
     scale=0.004
     width=0.5
     if "CCD" in xlabel:
@@ -76,7 +78,7 @@ def plotOne(df, xCol,yCol,dxCol,dyCol,xlabel,ylabel):
         plt.quiver(300, 200, dx, dy, color=color, angles="xy",units="xy", width=width*4, scale=scale)
 
     plt.axis("equal")
-    plt.title("median=%.1f   rms=%.1f   p90=%.1f (arcsec)"%(median/.06, rms/.06, p90/.06))
+    plt.title("site=%s mjd=%s\nmedian=%.1f   rms=%.1f   p90=%.1f (arcsec)"%(site, mjds, median/.06, rms/.06, p90/.06))
     plt.xlabel(xlabel)
     plt.ylabel(ylabel)
 
@@ -142,8 +144,8 @@ def plotAll(mjd=None):
 
     plotOne(df, "x_fvc", "y_fvc", "zfdx", "zfdy", "x CCD (pix)", "y CCD (pix)")
     plt.savefig("fvc_zb_err.png", dpi=200)
-    plt.show()
-    import pdb; pdb.set_trace()
+    # plt.show()
+    # import pdb; pdb.set_trace()
 
 
     df["fdx"] = (df.zdx * cosFVCRot - df.zdy * sinFVCRot)
@@ -680,7 +682,6 @@ def plotPAvsDec():
     plt.xlabel("PA (deg)")
     plt.show()
 
-
     import pdb; pdb.set_trace()
 
 
@@ -692,8 +693,11 @@ def plotPAvsDec():
 if __name__ == "__main__":
 
     # merge_all()
-    plotAll()
-    plotAll(mjd=60448)
+    # plotAll()
+    # plotAll(mjd=60448) # apo, good after fiducial fixes
+    plotAll(mjd=60520) # new bad mount lco
+    plotAll(mjd=60521) # new bad mount lco
+
     plt.show()
     # plotFVCdistortion()
     # reprocessFVC()

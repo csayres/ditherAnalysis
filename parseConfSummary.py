@@ -7,7 +7,57 @@ def parseFiberMapLine(line):
 
     # todo: parse these names from the file
     # rather than hardcode them in
-    cols = [
+    colsOld = [
+        "FIBERMAP",
+        "positionerId",
+        "holeId",
+        "fiberType",
+        "assigned",
+        "on_target",
+        "valid",
+        "decollided",
+        "xwok",
+        "ywok",
+        "zwok",
+        "xFocal",
+        "yFocal",
+        "alpha",
+        "beta",
+        "racat",
+        "deccat",
+        "pmra",
+        "pmdec",
+        "parallax",
+        "ra",
+        "dec",
+        "lambda_design",
+        "lambda_eff",
+        "coord_epoch",
+        "spectrographId",
+        "fiberId",
+        "u_mag",
+        "g_mag",
+        "r_mag",
+        "i_mag",
+        "z_mag",
+        "optical_prov",
+        "bp_mag",
+        "gaia_g_mag",
+        "rp_mag",
+        "h_mag",
+        "catalogid",
+        "carton_to_target_pk",
+        "cadence",
+        "firstcarton",
+        "program",
+        "category",
+        "sdssv_boss_target0",
+        "sdssv_apogee_target0",
+        "double delta_ra",
+        "double delta_dec",
+    ]
+
+    colsNew = [
         "FIBERMAP",
         "positionerId",
         "holeId",
@@ -62,6 +112,10 @@ def parseFiberMapLine(line):
         "double delta_dec",
     ]
     # import pdb; pdb.set_trace()
+    if len(toks) == len(colsNew):
+        cols = colsNew
+    else:
+        cols = colsOld
 
     castDict = {
         "positionerId": int,
