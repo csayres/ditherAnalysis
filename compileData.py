@@ -349,7 +349,7 @@ def getFVCData(mjd, site, expNum, reprocess=False):
             ff[1].data,
             Table(ff["POSANGLES"].data).to_pandas(),
             ff[1].header["IPA"],
-            positoinerTable=pt,
+            positionerTable=pt,
             wokCoords=wc,
             fiducialCoords=fc,
         )
