@@ -774,7 +774,7 @@ if __name__ == "__main__":
     site = sys.argv[2].lower()
     getDitherTables(mjd, site, reprocess=True)
     computeWokCoords(mjd, site)
-    fitFiberCenters(mjd, site)
+    fitFiberCenters(mjd, site, reprocess=True)
 
     # plotDitherPSFs()
     # plot_zps()
