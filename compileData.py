@@ -334,7 +334,7 @@ def getFVCData(mjd, site, expNum, reprocess=False):
         pt = calibration.positionerTable.reset_index()
         wc = calibration.wokCoords.reset_index()
         fc = calibration.fiducialCoords.reset_index()
-        if site.lower=="lco":
+        if site.lower()=="lco":
             _fvct = FVCTransformLCO
             pt = pt[pt.site=="LCO"]
             wc = wc[wc.site=="LCO"]
