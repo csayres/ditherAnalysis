@@ -746,8 +746,8 @@ def plotGFADistortion(mjd=None):
 
     ### apply dc xy offset to current gfaCoords
     # import pdb; pdb.set_trace()
-    gfaCoords["xWok"] = gfaCoords.xWok + numpy.array(xGFAoff)
-    gfaCoords["yWok"] = gfaCoords.yWok + numpy.array(yGFAoff)
+    gfaCoords["xWok"] = gfaCoords.xWok - numpy.array(xGFAoff)
+    gfaCoords["yWok"] = gfaCoords.yWok - numpy.array(yGFAoff)
 
     gfaCoords.to_csv("gfaCoords_lco_july_2024.csv")
 
