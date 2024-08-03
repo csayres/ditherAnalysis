@@ -13,6 +13,7 @@ import os
 import socket
 from multiprocessing import Pool
 import sys
+from functools import partial
 
 from parseConfSummary import parseConfSummary
 from findFiberCenter import fitOneSet, _plotOne
@@ -566,10 +567,10 @@ def computeWokCoords(mjd, site):
     # import pdb; pdb.set_trace()
 
 
-def fitOne(name):
+def fitOne(name, reprocess=False):
     configID, fiberId, camera, mjd, site = name
     csvName = OUT_DIR + "/%i"%mjd +"/ditherFit_%i_%i_%s_%i_%s.csv"%name
-    if os.path.exists(csvName):
+    if os.path.exists(csvName) and not reprocess:
         return
     print("---------\non %i %i %s\n------"%(configID, fiberId, camera))
 
@@ -603,7 +604,7 @@ def fitOne(name):
     plt.close("all")
 
 
-def fitFiberCenters(mjd, site): #df):
+def fitFiberCenters(mjd, site, reprocess=False): #df):
     df = pandas.read_csv(OUT_DIR + "/%i/dither_merged_%i_%s.csv"%(mjd,mjd,site))
     groupNames = []
     for name, group in df.groupby(["configID", "fiberID", "camera", "mjd", "site"]):
@@ -613,7 +614,8 @@ def fitFiberCenters(mjd, site): #df):
     #     fitOne(name)
 
     p = Pool(CORES)
-    p.map(fitOne, groupNames)
+    fo = partial(fitOne, reprocess=reprocess)
+    p.map(fo, groupNames)
 
 
 def plotDitherPSFs():
