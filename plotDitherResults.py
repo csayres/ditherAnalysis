@@ -570,7 +570,7 @@ def plotFVCdistortion(mjd=None):
     fcm["yWok"] = yWokNew
 
     fcm = fcm[keepCols]
-    fcm.to_csv("fiducialCoords_lco_july_2024.csv")
+    # fcm.to_csv("fiducialCoords_lco_july_2024.csv")
     plt.show()
     # import pdb; pdb.set_trace()
 
@@ -787,6 +787,8 @@ def plotPAvsDec():
 
 
 if __name__ == "__main__":
+    # look at GFA calib errors
+    # plotGFADistortion(mjd=60521)
 
     # merge_all()
     # plotAll()
@@ -800,13 +802,10 @@ if __name__ == "__main__":
     # plt.show()
     # update FIF locations
     # warning make sure correct wok calibs are setup (for the site)
-    # plotFVCdistortion(mjd=60521) # writes new file for fiducial positions
+    plotFVCdistortion(mjd=60521) # writes new file for fiducial positions
     # reprocessFVC()
     # plotReprocessFVC()
     # plotPAvsDec()
 
-
-    # look at GFA calib errors
-    plotGFADistortion(mjd=60521)
 
     plt.show()

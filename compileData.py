@@ -9,6 +9,8 @@ import seaborn as sns
 import numpy
 from coordio.utils import radec2wokxy
 from coordio.guide import SolvePointing
+from coordio.transforms import FVCTransformAPO, FVCTransformLCO
+from coordio.defaults import calibration
 import os
 import socket
 from multiprocessing import Pool
@@ -21,6 +23,10 @@ from findFiberCenter import fitOneSet, _plotOne
 # mjd = 60420
 import warnings
 warnings.filterwarnings("ignore", message="Warning! Coordinate far off telescope optical axis conversion may be bogus")
+
+POLIDS=numpy.array([0, 1, 2, 3, 4, 5, 6, 9, 20, 27, 28, 29, 30])
+RMAX = 310
+CENTTYPE = "sep"
 
 _hostname = socket.gethostname()
 
@@ -319,12 +325,42 @@ def getBossFlux(mjd, site, expNum):
     return pandas.concat(dfList)
 
 
-def getFVCData(mjd, site, expNum):
+def getFVCData(mjd, site, expNum, reprocess=False):
     imgPath = getFVCPath(mjd, site, expNum)
     ff = fits.open(imgPath)
-    ptm = Table(ff["POSITIONERTABLEMEAS"].data).to_pandas()
 
-    fcm = Table(ff["FIDUCIALCOORDSMEAS"].data).to_pandas()
+    if reprocess:
+        print("reprocessing fvc image", imgPath)
+        pt = calibration.positionerTable.reset_index()
+        wc = calibration.wokCoords.reset_index()
+        fc = calibration.fiducialCoords.reset_index()
+        if site.lower=="lco":
+            _fvct = FVCTransformLCO
+            pt = pt[pt.site=="LCO"]
+            wc = wc[wc.site=="LCO"]
+            fc = fc[fc.site=="LCO"]
+        else:
+            _fvct = FVCTransformAPO
+            pt = pt[pt.site=="APO"]
+            wc = wc[wc.site=="APO"]
+            fc = fc[fc.site=="APO"]
+
+        fvct = _fvct(
+            ff[1].data,
+            Table(ff["POSANGLES"].data).to_pandas(),
+            ff[1].header["IPA"],
+            positoinerTable=pt,
+            wokCoords=wc,
+            fiducialCoords=fc,
+        )
+        fvct.extractCentroids()
+        fvct.fit(centType=CENTTYPE)
+        ptm = fvct.positionerTableMeas.copy()
+        fcm = fvct.fiducialCoordsMeas.copy()
+
+    else:
+        ptm = Table(ff["POSITIONERTABLEMEAS"].data).to_pandas()
+        fcm = Table(ff["FIDUCIALCOORDSMEAS"].data).to_pandas()
     fcm["xWokMeasMetrology"] = fcm.xWokMeas
     fcm["yWokMeasMetrology"] = fcm.yWokMeas
     fcm["positionerID"] = -1
@@ -428,7 +464,7 @@ def getDitherTables(mjd, site, reprocess=False):
 
     # get the fvc data
     fvcImgNums = list(set(dfConfSumm.fvcImgNum))
-    dfList = [getFVCData(mjd, site, x) for x in fvcImgNums]
+    dfList = [getFVCData(mjd, site, x, reprocess) for x in fvcImgNums]
 
     dfFVC = pandas.concat(dfList)
 
