@@ -120,7 +120,7 @@ def getConfSummPath(configID, site, location=LOCATION):
     return confPath
 
 
-def getGFATables(mjd, site):
+def getGFATables(mjd, site, reprocess=False):
     site = site.lower()
     files = getGFAFiles(mjd, site)
 
@@ -137,7 +137,7 @@ def getGFATables(mjd, site):
         if offra == 0 and offdec == 0:
             continue
 
-        if "coordio" not in ff[1].header["SOLVMODE"]:
+        if reprocess or "coordio" not in ff[1].header["SOLVMODE"]:
             reprocSet.add(imgNum)
             continue
 
@@ -349,9 +349,9 @@ def getFVCData(mjd, site, expNum):
     return ptm
 
 
-def getDitherTables(mjd, site):
+def getDitherTables(mjd, site, reprocess=False):
     site = site.lower()
-    dfGFA = getGFATables(mjd, site)
+    dfGFA = getGFATables(mjd, site, reprocess)
 
     configIDs = list(set(dfGFA.configID))
     dfList = []
@@ -734,7 +734,7 @@ def plotFluxScatter(df):
 if __name__ == "__main__":
     mjd = int(sys.argv[1])
     site = sys.argv[2].lower()
-    getDitherTables(mjd, site)
+    getDitherTables(mjd, site, reprocess=True)
     computeWokCoords(mjd, site)
     fitFiberCenters(mjd, site)
 
