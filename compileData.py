@@ -357,6 +357,9 @@ def getFVCData(mjd, site, expNum, reprocess=False):
         fvct.fit(centType=CENTTYPE)
         ptm = fvct.positionerTableMeas.copy()
         fcm = fvct.fiducialCoordsMeas.copy()
+        for col in ["level_0", "index"]:
+            ptm.drop(col, axis=1, inplace=True)
+            fcm.drop(col, axis=1, inplace=True)
 
     else:
         ptm = Table(ff["POSITIONERTABLEMEAS"].data).to_pandas()
