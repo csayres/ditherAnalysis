@@ -4,7 +4,7 @@ import numpy
 import glob
 from coordio.zhaoburge import fitZhaoBurge, getZhaoBurgeXY
 from coordio import calibration
-from skimage.transform import SimilarityTransform
+from skimage.transform import SimilarityTransform, EuclideanTransform
 import seaborn as sns
 from coordio.transforms import FVCTransformAPO
 from astropy.io import fits
@@ -50,6 +50,7 @@ def fitZBs(x,y,dx,dy):
     zdy = _dy - dy
     zdr = numpy.sqrt(zdx**2+zdy**2)
     return zdx, zdy
+
 
 def plotOne(df, xCol,yCol,dxCol,dyCol,xlabel,ylabel):
     site = str(list(set(df.site)))
@@ -172,75 +173,75 @@ def plotAll(mjd=None):
 
 
 
-    polids, coeffs = fitZhaoBurge(
-        df.xWokMeasBOSS.to_numpy(),
-        df.yWokMeasBOSS.to_numpy(),
-        df.xWokDitherFit.to_numpy(),
-        df.yWokDitherFit.to_numpy(),
-        polids=POLIDS,
-        normFactor=RMAX
-    )
+    # polids, coeffs = fitZhaoBurge(
+    #     df.xWokMeasBOSS.to_numpy(),
+    #     df.yWokMeasBOSS.to_numpy(),
+    #     df.xWokDitherFit.to_numpy(),
+    #     df.yWokDitherFit.to_numpy(),
+    #     polids=POLIDS,
+    #     normFactor=RMAX
+    # )
 
-    dx, dy = getZhaoBurgeXY(
-        polids,
-        coeffs,
-        df.xWokMeasBOSS.to_numpy(),
-        df.yWokMeasBOSS.to_numpy(),
-        normFactor=RMAX
-    )
+    # dx, dy = getZhaoBurgeXY(
+    #     polids,
+    #     coeffs,
+    #     df.xWokMeasBOSS.to_numpy(),
+    #     df.yWokMeasBOSS.to_numpy(),
+    #     normFactor=RMAX
+    # )
 
-    zxfit = df.xWokMeasBOSS.to_numpy() + dx
-    zyfit = df.yWokMeasBOSS.to_numpy() + dy
+    # zxfit = df.xWokMeasBOSS.to_numpy() + dx
+    # zyfit = df.yWokMeasBOSS.to_numpy() + dy
 
-    zdx = zxfit - df.xWokDitherFit.to_numpy()
-    zdy = zyfit - df.yWokDitherFit.to_numpy()
-    zdr = numpy.sqrt(zdx**2+zdy**2)
+    # zdx = zxfit - df.xWokDitherFit.to_numpy()
+    # zdy = zyfit - df.yWokDitherFit.to_numpy()
+    # zdr = numpy.sqrt(zdx**2+zdy**2)
 
-    print("rms all", numpy.sqrt(numpy.mean(zdr**2)))
-    plt.figure()
-    plt.hist(zdr,bins=numpy.linspace(0,0.14,100))
+    # print("rms all", numpy.sqrt(numpy.mean(zdr**2)))
+    # plt.figure()
+    # plt.hist(zdr,bins=numpy.linspace(0,0.14,100))
 
-    plt.figure(figsize=(10,10))
-    plt.quiver(
-        df.xWokDitherFit.to_numpy(),df.yWokDitherFit.to_numpy(),zdx,zdy,angles="xy",units="xy", width=0.5, scale=0.003
-    )
+    # plt.figure(figsize=(10,10))
+    # plt.quiver(
+    #     df.xWokDitherFit.to_numpy(),df.yWokDitherFit.to_numpy(),zdx,zdy,angles="xy",units="xy", width=0.5, scale=0.003
+    # )
 
-    df["zdx"] = zdx
-    df["zdy"] = zdy
-    df["zdr"] = zdr
+    # df["zdx"] = zdx
+    # df["zdy"] = zdy
+    # df["zdr"] = zdr
 
 
-    # now group by robots
-    dfList = []
-    for name, group in df.groupby("positionerID"):
-        # if len(set(group.designID)) < 4:
-        #     continue
-        group = group[["configID", "designID", "xWok", "yWok", "zdx", "zdy", "alphaMeas", "betaMeas", "alphaOffset", "betaOffset"]].groupby("designID").mean().reset_index()
-        group["totalRot"] = -1*numpy.radians(group.alphaMeas+group.alphaOffset+group.betaMeas+group.betaOffset) + numpy.pi/2.
-        group["bdx"] = group.zdx * numpy.cos(group.totalRot) - group.zdy*numpy.sin(group.totalRot)
-        group["bdy"] = group.zdx * numpy.sin(group.totalRot) + group.zdy*numpy.cos(group.totalRot)
+    # # now group by robots
+    # dfList = []
+    # for name, group in df.groupby("positionerID"):
+    #     # if len(set(group.designID)) < 4:
+    #     #     continue
+    #     group = group[["configID", "designID", "xWok", "yWok", "zdx", "zdy", "alphaMeas", "betaMeas", "alphaOffset", "betaOffset"]].groupby("designID").mean().reset_index()
+    #     group["totalRot"] = -1*numpy.radians(group.alphaMeas+group.alphaOffset+group.betaMeas+group.betaOffset) + numpy.pi/2.
+    #     group["bdx"] = group.zdx * numpy.cos(group.totalRot) - group.zdy*numpy.sin(group.totalRot)
+    #     group["bdy"] = group.zdx * numpy.sin(group.totalRot) + group.zdy*numpy.cos(group.totalRot)
 
-        # subtract the mean beta arm offset
-        group["bdx2"] = group.bdx - numpy.mean(group.bdx)
-        group["bdy2"] = group.bdy - numpy.mean(group.bdy)
-        group["bdr2"] = numpy.sqrt(group.bdx2**2+group.bdy2**2)
-        dfList.append(group)
+    #     # subtract the mean beta arm offset
+    #     group["bdx2"] = group.bdx - numpy.mean(group.bdx)
+    #     group["bdy2"] = group.bdy - numpy.mean(group.bdy)
+    #     group["bdr2"] = numpy.sqrt(group.bdx2**2+group.bdy2**2)
+    #     dfList.append(group)
 
-    dfBeta = pandas.concat(dfList)
+    # dfBeta = pandas.concat(dfList)
 
-    plt.figure(figsize=(10,10))
-    plt.quiver(
-        dfBeta.xWok.to_numpy(),dfBeta.yWok.to_numpy(),dfBeta.bdx,dfBeta.bdy,angles="xy",units="xy", width=0.5, scale=0.003
-    )
+    # plt.figure(figsize=(10,10))
+    # plt.quiver(
+    #     dfBeta.xWok.to_numpy(),dfBeta.yWok.to_numpy(),dfBeta.bdx,dfBeta.bdy,angles="xy",units="xy", width=0.5, scale=0.003
+    # )
 
-    print("rms all", numpy.sqrt(numpy.mean(dfBeta.bdr2**2)))
-    plt.figure()
-    plt.hist(dfBeta.bdr2,bins=numpy.linspace(0,0.14,100))
+    # print("rms all", numpy.sqrt(numpy.mean(dfBeta.bdr2**2)))
+    # plt.figure()
+    # plt.hist(dfBeta.bdr2,bins=numpy.linspace(0,0.14,100))
 
-    plt.figure(figsize=(10,10))
-    plt.quiver(
-        dfBeta.xWok.to_numpy(),dfBeta.yWok.to_numpy(),dfBeta.bdx2,dfBeta.bdy2,angles="xy",units="xy", width=0.5, scale=0.003
-    )
+    # plt.figure(figsize=(10,10))
+    # plt.quiver(
+    #     dfBeta.xWok.to_numpy(),dfBeta.yWok.to_numpy(),dfBeta.bdx2,dfBeta.bdy2,angles="xy",units="xy", width=0.5, scale=0.003
+    # )
 
     # plt.figure(figsize=(10,10))
     # plt.quiver(
@@ -255,14 +256,16 @@ def plotAll(mjd=None):
     # import pdb; pdb.set_trace()
 
 
-def plotFVCdistortion():
+def plotFVCdistortion(mjd=None):
     df = pandas.read_csv("ditherFit_all_merged.csv")
+    if mjd is not None:
+        df = df[df.mjd==mjd]
     nConfigs = len(set(df.configID))
 
     xSky = df.xWokDitherFit.to_numpy()
     ySky = df.yWokDitherFit.to_numpy()
 
-    _dx = df.xWokMeasBOSS - df.xWokMeasMetrology
+    # _dx = df.xWokMeasBOSS - df.xWokMeasMetrology
     xFVC = df.xWokMeasBOSS.to_numpy()
     yFVC = df.yWokMeasBOSS.to_numpy()
 
@@ -550,20 +553,24 @@ def plotFVCdistortion():
     # write updated fiducial coords
     keepCols = ['site', 'holeID', 'id', 'xWok', 'yWok', 'zWok', 'col', 'row']
     fcm = calibration.fiducialCoords.reset_index()
-
+    print(len(fcm), len(dfm))
     # fiducial F7 doesn't exist in measurements (faint)
     fcm = fcm.merge(dfm, how="left", on="holeID", suffixes=(None, "_m"))
+    # not all fiducials have measurements some are broken (NaN values in xWokMeas)
     xWokSaved = fcm.xWok.to_numpy()
     yWokSaved = fcm.yWok.to_numpy()
     xWokNew = fcm.xWokMeas.to_numpy()
     yWokNew = fcm.yWokMeas.to_numpy()
-    xWokNew[44] = xWokSaved[44]
-    yWokNew[44] = yWokSaved[44] # nan replaced
+    brokenInds = numpy.argwhere(numpy.isnan(xWokNew)).flatten()
+    for idx in brokenInds:
+        xWokNew[idx] = xWokSaved[idx]
+        yWokNew[idx] = yWokSaved[idx]
+
     fcm["xWok"] = xWokNew
     fcm["yWok"] = yWokNew
 
     fcm = fcm[keepCols]
-    # fcm.to_csv("fiducialCoords_dither_updated.csv")
+    fcm.to_csv("fiducialCoords_lco_july_2024.csv")
     plt.show()
     # import pdb; pdb.set_trace()
 
@@ -670,8 +677,97 @@ def plotReprocessFVC():
         plt.title(title)
         plt.axis("equal")
 
+    plt.show()
+
+def plotGFADistortion(mjd=None):
+    df = pandas.read_csv("%i/dither_gfa_%i_lco.csv"%(mjd,mjd)).sort_values("gfaNum")
+
+    # plt.figure()
+    # sns.histplot(x=df.x2, hue=df.gfaNum, palette="Set2")
+    # plt.show()
+    df["dxWok"] = df.xWokMeas - df.xWokPred
+    df["dyWok"] = df.yWokMeas - df.yWokPred
+    df["drWok"] = numpy.sqrt(df.dxWok**2+df.dyWok**2)
+    df = df[df.drWok < 0.1]
+
+    gfaCoords = calibration.gfaCoords.reset_index().sort_values("id")
+
+    dfList = []
+    xGFAoff = []
+    yGFAoff = []
+    for name, group in df.groupby("gfaNum"):
+        print("name", name)
+        plt.figure()
+        plt.hist(group.drWok, bins=100)
+        plt.title(str(name))
+
+        plt.figure(figsize=(8,8))
+        plt.quiver(group.xWokPred, group.yWokPred, group.dxWok, group.dyWok, angles="xy", units="xy", scale=0.03)
+        plt.axis("equal")
+        plt.title(str(name))
+
+        # st = SimilarityTransform()
+        # # st = EuclideanTransform()
+        # xyPred = group[["xWokPred", "yWokPred"]].to_numpy()
+        # xyMeas = group[["xWokMeas", "yWokMeas"]].to_numpy()
+        # st.estimate(xyMeas, xyPred)
+
+        # print("gfa", name, st.translation, numpy.degrees(st.rotation)) #, st.scale)
+
+        # xyFit = st(xyMeas)
+
+        # dxyWokFit = xyFit - xyPred
+        # group["dxWokFit"] = dxyWokFit[:,0]
+        # group["dyWokFit"] = dxyWokFit[:,1]
+        # group["drWokFit"] = numpy.linalg.norm(dxyWokFit,axis=1)
+
+        dxOff = numpy.mean(group.dxWok)
+        dyOff = numpy.mean(group.dyWok)
+        # print("mean xy offset", dxOff, dyOff)
+        xGFAoff.append(dxOff)
+        yGFAoff.append(dyOff)
+
+        group["dxWokFit"] = group.dxWok - dxOff
+        group["dyWokFit"] = group.dyWok - dyOff
+        group["drWokFit"] = numpy.sqrt(group.dxWokFit**2+group.dyWokFit**2)
+
+        plt.figure()
+        plt.hist(group.drWokFit, bins=100)
+        plt.title(str(name))
+
+        plt.figure(figsize=(8,8))
+        plt.quiver(group.xWokPred, group.yWokPred, group.dxWokFit, group.dyWokFit, angles="xy", units="xy", scale=0.03)
+        plt.axis("equal")
+        plt.title(str(name))
+
+        dfList.append(group)
+
+    df = pandas.concat(dfList)
+
+    ### apply dc xy offset to current gfaCoords
+    # import pdb; pdb.set_trace()
+    gfaCoords["xWok"] = gfaCoords.xWok + numpy.array(xGFAoff)
+    gfaCoords["yWok"] = gfaCoords.yWok + numpy.array(yGFAoff)
+
+    gfaCoords.to_csv("gfaCoords_lco_july_2024.csv")
+
+    plt.figure()
+    plt.hist(df.drWok, bins=100)
+
+    plt.figure(figsize=(8,8))
+    plt.quiver(df.xWokPred, df.yWokPred, df.dxWok, df.dyWok, angles="xy", units="xy", scale=0.001, width=0.1)
+    plt.axis("equal")
+
+    plt.figure(figsize=(8,8))
+    plt.quiver(df.xWokPred, df.yWokPred, df.dxWokFit, df.dyWokFit, angles="xy", units="xy", scale=0.001, width=0.1)
+    plt.axis("equal")
+
+    plt.figure()
+    plt.hist(df.drWokFit, bins=100)
 
     plt.show()
+
+    import pdb; pdb.set_trace()
 
 
 def plotPAvsDec():
@@ -695,11 +791,22 @@ if __name__ == "__main__":
     # merge_all()
     # plotAll()
     # plotAll(mjd=60448) # apo, good after fiducial fixes
-    plotAll(mjd=60520) # new bad mount lco
-    plotAll(mjd=60521) # new bad mount lco
 
-    plt.show()
-    # plotFVCdistortion()
+    # plotAll(mjd=60229) # after baffle rotation
+    # plotAll(mjd=60371) # after IMB change
+    # plotAll(mjd=60520) # new (bad) mount lco
+    # plotAll(mjd=60521) # mount loosened
+
+    # plt.show()
+    # update FIF locations
+    # warning make sure correct wok calibs are setup (for the site)
+    # plotFVCdistortion(mjd=60521) # writes new file for fiducial positions
     # reprocessFVC()
     # plotReprocessFVC()
     # plotPAvsDec()
+
+
+    # look at GFA calib errors
+    plotGFADistortion(mjd=60521)
+
+    plt.show()
