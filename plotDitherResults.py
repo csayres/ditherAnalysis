@@ -87,7 +87,7 @@ def plotOne(df, xCol,yCol,dxCol,dyCol,xlabel,ylabel):
 def plotAll(mjd=None):
     df = pandas.read_csv("ditherFit_all_merged.csv")
     if mjd is not None:
-        df = df[df.mjd==mjd]
+        df = df[df.mjd.isin(mjd)]
     print(set(df.fvcIPA))
     nConfigs = len(set(df.configID))
 
@@ -166,6 +166,16 @@ def plotAll(mjd=None):
 
     plotOne(df, "x_fvc", "y_fvc", "zfdx", "zfdy", "x CCD (pix)", "y CCD (pix)")
 
+    alpha = df.alphaMeas.to_numpy() + df.alphaOffset.to_numpy()
+    beta = df.betaMeas.to_numpy() + df.betaOffset.to_numpy()
+    theta = numpy.radians(alpha+beta) - numpy.pi/2
+    dxRot = numpy.cos(theta)*df.dx+numpy.sin(theta)*df.dy
+    dyRot = -numpy.sin(theta)*df.dx+numpy.cos(theta)*df.dy
+
+    df["dxBetaArm"] = dxRot
+    df["dyBetaArm"] = dyRot
+
+    plotOne(df, "xWok", "yWok", "dxBetaArm", "dyBetaArm", "x wok (mm)", "y wok (mm)")
 
 
     # plt.show()
@@ -254,6 +264,57 @@ def plotAll(mjd=None):
 
     # plt.show()
     # import pdb; pdb.set_trace()
+
+def plotBetaArm(mjd=None):
+    df = pandas.read_csv("ditherFit_all_merged.csv")
+    if mjd is not None:
+        df = df[df.mjd==mjd]
+    nConfigs = len(set(df.configID))
+
+    xSky = df.xWokDitherFit.to_numpy()
+    ySky = df.yWokDitherFit.to_numpy()
+
+    # _dx = df.xWokMeasBOSS - df.xWokMeasMetrology
+    xFVC = df.xWokMeasBOSS.to_numpy()
+    yFVC = df.yWokMeasBOSS.to_numpy()
+
+    dx = xFVC - xSky
+    dy = yFVC - ySky
+    dr = numpy.sqrt(dx**2+dy**2)
+
+    df["dx"] = dx
+    df["dy"] = dy
+    df["dr"] = dr
+    # throw out measurements off by > 150 microns
+    df = df[df.dr < 0.150]
+
+    alpha = df.alphaMeas.to_numpy() + df.alphaOffset.to_numpy()
+    beta = df.betaMeas.to_numpy() + df.betaOffset.to_numpy()
+    theta = numpy.radians(alpha+beta) - numpy.pi/2
+    dxRot = numpy.cos(theta)*df.dx+numpy.sin(theta)*df.dy
+    dyRot = -numpy.sin(theta)*df.dx+numpy.cos(theta)*df.dy
+
+    df["dxBetaArm"] = dxRot
+    df["dyBetaArm"] = dyRot
+
+    plt.figure()
+    plt.hist(df.dr,bins=200)
+    plt.show()
+
+
+
+
+    # for ii in range(len(dx)):
+    #     print(alpha[ii])
+    #     theta = numpy.radians(alpha[ii]+beta[ii]) - numpy.pi/2.
+    #     _dxRot = numpy.cos(theta)*dx[ii]+numpy.sin(theta)*dy[ii]
+    #     _dyRot = -numpy.sin(theta)*dx[ii]+numpy.cos(theta)*dy[ii]
+    #     dxRot.append(_dxRot)
+    #     dyRot.append(_dyRot)
+    # dxRot = numpy.array(dxRot)
+    # dyRot = numpy.array(dyRot)
+
+    import pdb; pdb.set_trace()
 
 
 def plotFVCdistortion(mjd=None):
@@ -680,8 +741,12 @@ def plotReprocessFVC():
     plt.show()
 
 def plotGFADistortion(mjd=None):
-    df = pandas.read_csv("%i/dither_gfa_%i_lco.csv"%(mjd,mjd)).sort_values("gfaNum")
+    dfList = []
+    if mjd is not None:
+        for _m in mjd:
+            dfList.append(pandas.read_csv("%i/dither_gfa_%i_lco.csv"%(_m,_m)).sort_values("gfaNum"))
 
+    df = pandas.concat(dfList)
     # plt.figure()
     # sns.histplot(x=df.x2, hue=df.gfaNum, palette="Set2")
     # plt.show()
@@ -753,17 +818,27 @@ def plotGFADistortion(mjd=None):
 
     plt.figure()
     plt.hist(df.drWok, bins=100)
+    plt.xlabel("dr (mm)")
 
+    rms = numpy.sqrt(numpy.mean(df.drWok**2))*1000
     plt.figure(figsize=(8,8))
     plt.quiver(df.xWokPred, df.yWokPred, df.dxWok, df.dyWok, angles="xy", units="xy", scale=0.001, width=0.1)
+    plt.xlabel("x wok (mm)")
+    plt.ylabel("y wok (mm)")
+    plt.title("rms err: %.1f micron"%rms)
     plt.axis("equal")
 
+    rms = numpy.sqrt(numpy.mean(df.drWokFit**2))*1000
     plt.figure(figsize=(8,8))
     plt.quiver(df.xWokPred, df.yWokPred, df.dxWokFit, df.dyWokFit, angles="xy", units="xy", scale=0.001, width=0.1)
+    plt.title("rms err: %.1f micron"%rms)
+    plt.xlabel("x wok (mm)")
+    plt.ylabel("y wok (mm)")
     plt.axis("equal")
 
     plt.figure()
     plt.hist(df.drWokFit, bins=100)
+    plt.xlabel("dr (mm)")
 
     plt.show()
 
@@ -788,21 +863,24 @@ def plotPAvsDec():
 
 if __name__ == "__main__":
     # look at GFA calib errors
-    # plotGFADistortion(mjd=60521)
+    # plt.show()
 
-    # merge_all()
+    merge_all()
+
+    plotGFADistortion(mjd=[60521,60528])
     # plotAll()
     # plotAll(mjd=60448) # apo, good after fiducial fixes
 
     # plotAll(mjd=60229) # after baffle rotation
     # plotAll(mjd=60371) # after IMB change
     # plotAll(mjd=60520) # new (bad) mount lco
-    # plotAll(mjd=60521) # mount loosened
+    plotAll(mjd=[60521,60528]) # mount loosened
+    # plotBetaArm(mjd=60521)
 
     # plt.show()
     # update FIF locations
     # warning make sure correct wok calibs are setup (for the site)
-    plotFVCdistortion(mjd=60521) # writes new file for fiducial positions
+    # plotFVCdistortion(mjd=60521) # writes new file for fiducial positions
     # reprocessFVC()
     # plotReprocessFVC()
     # plotPAvsDec()
