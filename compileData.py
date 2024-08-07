@@ -567,12 +567,12 @@ def computeWokCoords(mjd, site):
 
             raCen2 = group.field_cen_ra.iloc[0]
             decCen2 = group.field_cen_dec.iloc[0]
-            paCen2 = group.field_cen_pa.iloc[0]
+            paCen2 = group.field_cen_pa.iloc[0] + group.offpa.iloc[0]/3600.
 
             xwok, ywok, fw, ha, pa = radec2wokxy(
                 ra, dec, coord_epoch.jd, wl,
                 raCen2, decCen2, paCen2,
-                "APO", tobs.jd, focScale,
+                site.upper(), tobs.jd, focScale,
                 pmra, pmdec, px, darLambda=darLambda
             )
             group["xWokStarPredictCen"] = xwok

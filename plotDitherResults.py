@@ -15,11 +15,11 @@ POLIDS=numpy.array([0, 1, 2, 3, 4, 5, 6, 9, 20, 27, 28, 29, 30])
 RMAX = 310
 
 
-def merge_all():
+def merge_all(mjds):
     dfList = []
     dirs = glob.glob("60*")
-    for d in dirs:
-        fs = glob.glob(d + "/ditherFit*.csv")
+    for mjd in mjds:
+        fs = glob.glob("%i/ditherFit*.csv"%mjd)
         for f in fs:
             print("processing ", f)
             dfList.append(pandas.read_csv(f))
@@ -79,7 +79,7 @@ def plotOne(df, xCol,yCol,dxCol,dyCol,xlabel,ylabel):
         plt.quiver(300, 200, dx, dy, color=color, angles="xy",units="xy", width=width*4, scale=scale)
 
     plt.axis("equal")
-    plt.title("site=%s mjd=%s\nmedian=%.1f   rms=%.1f   p90=%.1f (arcsec)"%(site, mjds, median/.06, rms/.06, p90/.06))
+    plt.title("site=%s mjd=%s\nmedian=%.1f   rms=%.1f   p90=%.1f (um)"%(site, mjds, median*1000, rms*1000, p90*1000))
     plt.xlabel(xlabel)
     plt.ylabel(ylabel)
 
@@ -166,6 +166,7 @@ def plotAll(mjd=None):
 
     plotOne(df, "x_fvc", "y_fvc", "zfdx", "zfdy", "x CCD (pix)", "y CCD (pix)")
 
+    # rotate things to beta arm frame and plot
     alpha = df.alphaMeas.to_numpy() + df.alphaOffset.to_numpy()
     beta = df.betaMeas.to_numpy() + df.betaOffset.to_numpy()
     theta = numpy.radians(alpha+beta) - numpy.pi/2
@@ -265,45 +266,6 @@ def plotAll(mjd=None):
     # plt.show()
     # import pdb; pdb.set_trace()
 
-def plotBetaArm(mjd=None):
-    df = pandas.read_csv("ditherFit_all_merged.csv")
-    if mjd is not None:
-        df = df[df.mjd==mjd]
-    nConfigs = len(set(df.configID))
-
-    xSky = df.xWokDitherFit.to_numpy()
-    ySky = df.yWokDitherFit.to_numpy()
-
-    # _dx = df.xWokMeasBOSS - df.xWokMeasMetrology
-    xFVC = df.xWokMeasBOSS.to_numpy()
-    yFVC = df.yWokMeasBOSS.to_numpy()
-
-    dx = xFVC - xSky
-    dy = yFVC - ySky
-    dr = numpy.sqrt(dx**2+dy**2)
-
-    df["dx"] = dx
-    df["dy"] = dy
-    df["dr"] = dr
-    # throw out measurements off by > 150 microns
-    df = df[df.dr < 0.150]
-
-    alpha = df.alphaMeas.to_numpy() + df.alphaOffset.to_numpy()
-    beta = df.betaMeas.to_numpy() + df.betaOffset.to_numpy()
-    theta = numpy.radians(alpha+beta) - numpy.pi/2
-    dxRot = numpy.cos(theta)*df.dx+numpy.sin(theta)*df.dy
-    dyRot = -numpy.sin(theta)*df.dx+numpy.cos(theta)*df.dy
-
-    df["dxBetaArm"] = dxRot
-    df["dyBetaArm"] = dyRot
-
-    plt.figure()
-    plt.hist(df.dr,bins=200)
-    plt.show()
-
-
-
-
     # for ii in range(len(dx)):
     #     print(alpha[ii])
     #     theta = numpy.radians(alpha[ii]+beta[ii]) - numpy.pi/2.
@@ -320,7 +282,7 @@ def plotBetaArm(mjd=None):
 def plotFVCdistortion(mjd=None):
     df = pandas.read_csv("ditherFit_all_merged.csv")
     if mjd is not None:
-        df = df[df.mjd==mjd]
+        df = df[df.mjd.isin(mjd)]
     nConfigs = len(set(df.configID))
 
     xSky = df.xWokDitherFit.to_numpy()
@@ -855,19 +817,35 @@ def plotPAvsDec():
 
     import pdb; pdb.set_trace()
 
+def plotScale():
+    df = pandas.read_csv("ditherFit_all_merged.csv")
+    plt.figure()
+    plt.plot(df.taiMid, df.focal_scale, '.k')
+    # plt.plot(df.taiMid, df.focal_scale*1.0003, 'xk')
+    plt.plot(df.taiMid, df.SOL_SCL, '.r')
+    plt.show()
 
+
+    import pdb; pdb.set_trace()
 
     # plt.show()
 
+def plotStars():
+    df = pandas.read_csv("ditherFit_all_merged.csv")
+    import pdb; pdb.set_trace()
 
 
 if __name__ == "__main__":
     # look at GFA calib errors
     # plt.show()
 
-    merge_all()
+    merge_all(mjds=[60521,60528])
+    # merge_all(mjds=[60448])
+    plotStars()
 
-    plotGFADistortion(mjd=[60521,60528])
+    import pdb; pdb.set_trace()
+
+    # plotGFADistortion(mjd=[60521,60528])
     # plotAll()
     # plotAll(mjd=60448) # apo, good after fiducial fixes
 
@@ -880,7 +858,7 @@ if __name__ == "__main__":
     # plt.show()
     # update FIF locations
     # warning make sure correct wok calibs are setup (for the site)
-    # plotFVCdistortion(mjd=60521) # writes new file for fiducial positions
+    plotFVCdistortion(mjd=[60521,60528]) # writes new file for fiducial positions
     # reprocessFVC()
     # plotReprocessFVC()
     # plotPAvsDec()
