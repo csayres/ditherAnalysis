@@ -323,6 +323,7 @@ def getBossFlux(mjd, site, expNum):
             df["configID"] = ff[0].header["CONFIGID"]
             keepCols = ["configID", "bossExpNum", "fiberID", "mjd", "lambdaCen", "camera", "spectroflux", "spectroflux_ivar", "objtype", "bossExptime", "bossExpStart", "bossExpEnd"]
             df = df[keepCols]
+            ff.close()
         dfList.append(df)
 
     return pandas.concat(dfList)
@@ -389,6 +390,7 @@ def getFVCData(mjd, site, expNum, reprocess=False):
         ptm["fvcAZ"] = ff[1].header["AZ"]
 
     # import pdb; pdb.set_trace()
+    ff.close()
     return ptm
 
 
@@ -701,7 +703,8 @@ def plotDitherPSFs():
             ym = numpy.mean(group.y) - (yCen-cutoutSize)
             imgNum = 0
             for fpath in group.file_path.to_list():
-                data = fits.open(fpath)[1].data
+                ff = fits.open(fpath)
+                data = ff[1].data
                 cutout = data[yCen-cutoutSize:yCen+cutoutSize+1, xCen-cutoutSize:xCen+cutoutSize+1]
                 imgStack.append(cutout)
                 plt.figure()
@@ -710,6 +713,7 @@ def plotDitherPSFs():
                 plt.title("config %i dither %i: "%(configID, ditherNum) + str(idx) + " imgNum: %i"%(imgNum))
                 plt.savefig("dither_%i_%i_img_%i.png"%(configID, ditherNum, imgNum), dpi=100)
                 imgNum += 1
+                ff.close()
 
 
             imgStack = numpy.sum(imgStack, axis=0)
