@@ -233,6 +233,7 @@ def getGFATables(mjd, site, reprocess=False):
             sp.solve()
         except:
             print("skipping gimg (solve failed)", imgNum)
+            continue
         for img in imgs:
             ff = fits.open(img)
             toks = img.split("-")
