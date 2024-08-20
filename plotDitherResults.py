@@ -24,6 +24,15 @@ def merge_all(mjds):
             print("processing ", f)
             dfList.append(pandas.read_csv(f))
     df = pandas.concat(dfList)
+
+    # remove configurations with 5 or less boss exposures
+    dfList = []
+    for name, group in df.groupby("configID"):
+        nBossExp = len(set(group.bossExpNum))
+        if nBossExp >= 5:
+            dfList.append(group)
+
+    df = pandas.concat(dfList)
     df.to_csv("ditherFit_all_merged.csv", index=False)
 
 
@@ -119,52 +128,52 @@ def plotAll(mjd=None):
     plotOne(df, "x_fvc", "y_fvc", "fdx", "fdy", "x CCD (pix)", "y CCD (pix)")
     plt.savefig("fvc_err.png", dpi=200)
 
-    dx, dy = fitZBs(
-        df.xWokDitherFit.to_numpy(),
-        df.yWokDitherFit.to_numpy(),
-        df.dx.to_numpy(),
-        df.dy.to_numpy()
-    )
+    # dx, dy = fitZBs(
+    #     df.xWokDitherFit.to_numpy(),
+    #     df.yWokDitherFit.to_numpy(),
+    #     df.dx.to_numpy(),
+    #     df.dy.to_numpy()
+    # )
 
-    df["zdx"] = dx
-    df["zdy"] = dy
+    # df["zdx"] = dx
+    # df["zdy"] = dy
 
-    plotOne(df, "xWokDitherFit", "yWokDitherFit", "zdx", "zdy", "x wok (mm)", "y wok (mm)")
-    plt.savefig("wok_zb_err.png", dpi=200)
-
-
-    dx, dy = fitZBs(
-        df.x_fvc.to_numpy(),
-        df.y_fvc.to_numpy(),
-        df.fdx.to_numpy(),
-        df.fdy.to_numpy()
-    )
-
-    df["zfdx"] = dx
-    df["zfdy"] = dy
-
-    plotOne(df, "x_fvc", "y_fvc", "zfdx", "zfdy", "x CCD (pix)", "y CCD (pix)")
-    plt.savefig("fvc_zb_err.png", dpi=200)
-    # plt.show()
-    # import pdb; pdb.set_trace()
+    # plotOne(df, "xWokDitherFit", "yWokDitherFit", "zdx", "zdy", "x wok (mm)", "y wok (mm)")
+    # plt.savefig("wok_zb_err.png", dpi=200)
 
 
-    df["fdx"] = (df.zdx * cosFVCRot - df.zdy * sinFVCRot)
-    df["fdy"] = (df.zdx * sinFVCRot + df.zdy * cosFVCRot)
+    # dx, dy = fitZBs(
+    #     df.x_fvc.to_numpy(),
+    #     df.y_fvc.to_numpy(),
+    #     df.fdx.to_numpy(),
+    #     df.fdy.to_numpy()
+    # )
 
-    plotOne(df, "x_fvc", "y_fvc", "fdx", "fdy", "x CCD (pix)", "y CCD (pix)")
+    # df["zfdx"] = dx
+    # df["zfdy"] = dy
 
-    dx, dy = fitZBs(
-        df.x_fvc.to_numpy(),
-        df.y_fvc.to_numpy(),
-        df.fdx.to_numpy(),
-        df.fdy.to_numpy()
-    )
+    # plotOne(df, "x_fvc", "y_fvc", "zfdx", "zfdy", "x CCD (pix)", "y CCD (pix)")
+    # plt.savefig("fvc_zb_err.png", dpi=200)
+    # # plt.show()
+    # # import pdb; pdb.set_trace()
 
-    df["zfdx"] = dx
-    df["zfdy"] = dy
 
-    plotOne(df, "x_fvc", "y_fvc", "zfdx", "zfdy", "x CCD (pix)", "y CCD (pix)")
+    # df["fdx"] = (df.zdx * cosFVCRot - df.zdy * sinFVCRot)
+    # df["fdy"] = (df.zdx * sinFVCRot + df.zdy * cosFVCRot)
+
+    # plotOne(df, "x_fvc", "y_fvc", "fdx", "fdy", "x CCD (pix)", "y CCD (pix)")
+
+    # dx, dy = fitZBs(
+    #     df.x_fvc.to_numpy(),
+    #     df.y_fvc.to_numpy(),
+    #     df.fdx.to_numpy(),
+    #     df.fdy.to_numpy()
+    # )
+
+    # df["zfdx"] = dx
+    # df["zfdy"] = dy
+
+    # plotOne(df, "x_fvc", "y_fvc", "zfdx", "zfdy", "x CCD (pix)", "y CCD (pix)")
 
     # rotate things to beta arm frame and plot
     alpha = df.alphaMeas.to_numpy() + df.alphaOffset.to_numpy()
@@ -177,6 +186,18 @@ def plotAll(mjd=None):
     df["dyBetaArm"] = dyRot
 
     plotOne(df, "xWok", "yWok", "dxBetaArm", "dyBetaArm", "x wok (mm)", "y wok (mm)")
+
+    dfList = []
+    for name, group in df.groupby(["fiberID"]):
+        group = group.reset_index()
+        group["dxBetaArmFit"] = group.dxBetaArm - numpy.mean(group.dxBetaArm)
+        group["dyBetaArmFit"] = group.dyBetaArm - numpy.mean(group.dyBetaArm)
+        dfList.append(group)
+
+    df = pandas.concat(dfList)
+
+    plotOne(df, "xWok", "yWok", "dxBetaArmFit", "dyBetaArmFit", "x wok (mm)", "y wok (mm)")
+        # import pdb; pdb.set_trace()
 
 
     # plt.show()
@@ -276,10 +297,10 @@ def plotAll(mjd=None):
     # dxRot = numpy.array(dxRot)
     # dyRot = numpy.array(dyRot)
 
-    import pdb; pdb.set_trace()
+    # import pdb; pdb.set_trace()
 
 
-def plotFVCdistortion(mjd=None):
+def plotFVCdistortion(mjd=None, fiducialOut=None):
     df = pandas.read_csv("ditherFit_all_merged.csv")
     if mjd is not None:
         df = df[df.mjd.isin(mjd)]
@@ -592,8 +613,9 @@ def plotFVCdistortion(mjd=None):
     fcm["xWok"] = xWokNew
     fcm["yWok"] = yWokNew
 
-    fcm = fcm[keepCols]
-    # fcm.to_csv("fiducialCoords_lco_july_2024.csv")
+    if fiducialOut:
+        fcm = fcm[keepCols]
+        fcm.to_csv(fiducialOut)
     plt.show()
     # import pdb; pdb.set_trace()
 
@@ -706,7 +728,10 @@ def plotGFADistortion(mjd=None):
     dfList = []
     if mjd is not None:
         for _m in mjd:
-            dfList.append(pandas.read_csv("%i/dither_gfa_%i_lco.csv"%(_m,_m)).sort_values("gfaNum"))
+            try:
+                dfList.append(pandas.read_csv("%i/dither_gfa_%i_lco.csv"%(_m,_m)).sort_values("gfaNum"))
+            except:
+                dfList.append(pandas.read_csv("%i/dither_gfa_%i_apo.csv"%(_m,_m)).sort_values("gfaNum"))
 
     df = pandas.concat(dfList)
     # plt.figure()
@@ -723,7 +748,6 @@ def plotGFADistortion(mjd=None):
     xGFAoff = []
     yGFAoff = []
     for name, group in df.groupby("gfaNum"):
-        print("name", name)
         plt.figure()
         plt.hist(group.drWok, bins=100)
         plt.title(str(name))
@@ -802,9 +826,9 @@ def plotGFADistortion(mjd=None):
     plt.hist(df.drWokFit, bins=100)
     plt.xlabel("dr (mm)")
 
-    plt.show()
+    # plt.show()
 
-    import pdb; pdb.set_trace()
+    # import pdb; pdb.set_trace()
 
 
 def plotPAvsDec():
@@ -832,18 +856,35 @@ def plotScale():
 
 def plotStars():
     df = pandas.read_csv("ditherFit_all_merged.csv")
-    import pdb; pdb.set_trace()
+    df = df[["configID", "mjd", "camera", "fiberID", "xWokStarPredict", "yWokStarPredict", "xWokDitherFit", "yWokDitherFit"]]
+    df = df.groupby(["configID", "mjd", "fiberID", "camera"]).mean().reset_index()
+    df["dx"] = df.xWokDitherFit - df.xWokStarPredict
+    df["dy"] = df.yWokDitherFit - df.yWokStarPredict
+    df["dr"] = numpy.sqrt(df.dx**2+df.dy**2)
+    df = df[df.dr<0.5]
+
+    for name, group in df.groupby("mjd"):
+        plt.figure()
+        plt.hist(df.dr)
+        plt.title(str(name))
+
+        plt.figure(figsize=(8,8))
+        plt.quiver(df.xWokStarPredict, df.yWokStarPredict, df.dx, df.dy, angles="xy", units="xy", scale=0.005)
+        plt.axis("equal")
+        plt.title(str(name))
+    plt.show()
+
+        # import pdb; pdb.set_trace()
 
 
 if __name__ == "__main__":
     # look at GFA calib errors
     # plt.show()
 
-    merge_all(mjds=[60521,60528])
-    # merge_all(mjds=[60448])
-    plotStars()
+    # merge_all(mjds=[60521,60528])
+    # plotStars()
 
-    import pdb; pdb.set_trace()
+    # import pdb; pdb.set_trace()
 
     # plotGFADistortion(mjd=[60521,60528])
     # plotAll()
@@ -852,13 +893,23 @@ if __name__ == "__main__":
     # plotAll(mjd=60229) # after baffle rotation
     # plotAll(mjd=60371) # after IMB change
     # plotAll(mjd=60520) # new (bad) mount lco
-    plotAll(mjd=[60521,60528]) # mount loosened
+
+    # merge_all(mjds=[60521,60528])
+    # plotGFADistortion(mjd=[60521,60528])
+    # plotAll(mjd=[60521,60528]) # mount loosened
+    # plotFVCdistortion(mjd=[60521,60528]) # writes new file for fiducial positions
+
+    merge_all(mjds=[60529, 60537])
+    plotAll(mjd=[60529, 60537]) # apo post shutdown
+    plotGFADistortion(mjd=[60529, 60537])
+    plotFVCdistortion(mjd=[60529, 60537], fiducialOut="fiducial_coords_apo_60537.csv")
+
     # plotBetaArm(mjd=60521)
 
     # plt.show()
     # update FIF locations
     # warning make sure correct wok calibs are setup (for the site)
-    plotFVCdistortion(mjd=[60521,60528]) # writes new file for fiducial positions
+    # plotFVCdistortion(mjd=[60521,60528]) # writes new file for fiducial positions
     # reprocessFVC()
     # plotReprocessFVC()
     # plotPAvsDec()
