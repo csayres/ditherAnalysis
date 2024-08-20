@@ -37,7 +37,7 @@ if "Conors" in _hostname:
 elif "apogee" in _hostname:
     LOCATION = "utah"
     OUT_DIR = "/uufs/chpc.utah.edu/common/home/u0449727/work/ditherAnalysis"
-    CORES = 20
+    CORES = 10
     gaia_connection_string = "postgresql://sdss_user@operations.sdss.org/sdss5db"
     gaia_connection_table = "catalogdb.gaia_dr2_source"
 elif "sdss5" in _hostname:
@@ -616,8 +616,8 @@ def fitOne(name, reprocess=False):
         return
     print("---------\non %i %i %s\n------"%(configID, fiberId, camera))
 
-    df = pandas.read_csv(OUT_DIR + "/%i/dither_merged_%i_%s.csv"%(mjd,mjd,site))
-    group = df[(df.configID==name[0]) & (df.fiberID==name[1]) & (df.camera==name[2])].reset_index(drop=True)
+    group = pandas.read_csv(OUT_DIR + "/%i/dither_merged_%i_%s.csv"%(mjd,mjd,site))
+    group = group[(group.configID==name[0]) & (group.fiberID==name[1]) & (group.camera==name[2])].reset_index(drop=True)
     xStar = group.xWokStarPredict.to_numpy()
     yStar = group.yWokStarPredict.to_numpy()
     dxStar = group.dxWokStar.to_numpy()
