@@ -620,7 +620,7 @@ def plotFVCdistortion(mjd=None, fiducialOut=None):
     # import pdb; pdb.set_trace()
 
 
-def reprocessFVC():
+def reprocessFVC(centType="sep"):
     dfAll = pandas.read_csv("ditherFit_all_merged.csv")
     fcm = pandas.read_csv("fiducialCoords_dither_updated.csv")
     fvcImg = dfAll[["fvcImgNum", "mjd"]].groupby(["fvcImgNum", "mjd"]).first().reset_index().sort_values(["mjd","fvcImgNum"])
@@ -643,7 +643,7 @@ def reprocessFVC():
         )
         fvct.extractCentroids()
         fvct.fit(
-            centType="sep"
+            centType=centType
         )
 
         _df = dfAll[(dfAll.fvcImgNum==imgNum) & (dfAll.mjd==mjd)]
@@ -899,10 +899,16 @@ if __name__ == "__main__":
     # plotAll(mjd=[60521,60528]) # mount loosened
     # plotFVCdistortion(mjd=[60521,60528]) # writes new file for fiducial positions
 
-    merge_all(mjds=[60529, 60537])
-    plotAll(mjd=[60529, 60537]) # apo post shutdown
-    plotGFADistortion(mjd=[60529, 60537])
-    plotFVCdistortion(mjd=[60529, 60537], fiducialOut="fiducial_coords_apo_60537.csv")
+    #merge_all(mjds=[60529, 60537])
+    #plotAll(mjd=[60529, 60537]) # apo post shutdown
+    #plotGFADistortion(mjd=[60529, 60537])
+    #plotFVCdistortion(mjd=[60529, 60537], fiducialOut="fiducial_coords_apo_60537_nudge_fit.csv")
+
+    # merge_all(mjds=[60558]) # apo post nudge
+    # merge_all(mjds=[60572]) # apo bright time eng
+    # plotAll(mjd=[60572])
+    plotGFADistortion(mjd=[60572])
+    # plotFVCdistortion(mjd=[60572], fiducialOut="fiducial_coords_apo_60572.csv")
 
     # plotBetaArm(mjd=60521)
 

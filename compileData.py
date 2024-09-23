@@ -34,7 +34,7 @@ if "Conors" in _hostname:
     LOCATION = "local"
     OUT_DIR = os.getcwd()
     CORES = 10
-elif "apogee" in _hostname:
+elif "apogee" or "manga" in _hostname:
     LOCATION = "utah"
     OUT_DIR = "/uufs/chpc.utah.edu/common/home/u0449727/work/ditherAnalysis"
     CORES = 10
@@ -131,6 +131,8 @@ def getGFATables(mjd, site, reprocess=False):
     site = site.lower()
     files = getGFAFiles(mjd, site)
 
+
+
     reprocSet = set()
 
     dfList = []
@@ -182,8 +184,8 @@ def getGFATables(mjd, site, reprocess=False):
         t["gfaExptime"] = ff[1].header["EXPTIMEN"]
 
         t["guideErrRA"] = ff[1].header["DELTARA"]
-        t["guideErrRA"] = ff[1].header["DELTADEC"]
-        t["guideErrRA"] = ff[1].header["DELTAROT"]
+        t["guideErrDec"] = ff[1].header["DELTADEC"]
+        t["guideErrRot"] = ff[1].header["DELTAROT"]
         t["guideRMS"] = ff[1].header["SOL_GRMS"]
         t["guideFitRMS"] = ff[1].header["SOL_FRMS"]
         t["guideFWHM"] = ff[1].header["FWHM"]
