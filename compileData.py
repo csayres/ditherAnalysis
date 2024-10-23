@@ -26,7 +26,7 @@ warnings.filterwarnings("ignore", message="Warning! Coordinate far off telescope
 
 POLIDS=numpy.array([0, 1, 2, 3, 4, 5, 6, 9, 20, 27, 28, 29, 30])
 RMAX = 310
-CENTTYPE = "sep"
+CENTTYPE = "nudge"
 
 _hostname = socket.gethostname()
 
@@ -37,7 +37,7 @@ if "Conors" in _hostname:
 elif "apogee" or "manga" in _hostname:
     LOCATION = "utah"
     OUT_DIR = "/uufs/chpc.utah.edu/common/home/u0449727/work/ditherAnalysis"
-    CORES = 10
+    CORES = 20
     gaia_connection_string = "postgresql://sdss_user@operations.sdss.org/sdss5db"
     gaia_connection_table = "catalogdb.gaia_dr2_source"
 elif "sdss5" in _hostname:
@@ -217,6 +217,10 @@ def getGFATables(mjd, site, reprocess=False):
             wcs = None
             if ff[1].header["SOLVED"]:
                 wcs = WCS(ff[1].header)
+                # field could be solved but not every
+                # gfa has a wcs
+                if "CTYPE1" not in wcs.to_header():
+                    wcs = None
             sp.add_gimg(
                 img,
                 Table(ff["CENTROIDS"].data).to_pandas(),
@@ -229,12 +233,13 @@ def getGFATables(mjd, site, reprocess=False):
         if len(sp.gfaWCS) < 2:
             # skip need at least 2 wcs solns for
             # coordio solve
-            print("skipping gimg", imgNum)
+            print("skipping gimg with < 2 wcs solns", imgNum)
             continue
         try:
             sp.solve()
-        except:
-            print("skipping gimg (solve failed)", imgNum)
+        except Exception as e:
+            print("skipping gimg (solve failed)", site, mjd, imgNum)
+            print(e)
             continue
         for img in imgs:
             ff = fits.open(img)
@@ -784,7 +789,7 @@ def plotFluxScatter(df):
 if __name__ == "__main__":
     mjd = int(sys.argv[1])
     site = sys.argv[2].lower()
-    getDitherTables(mjd, site, reprocess=True)
+    getDitherTables(mjd, site, reprocess=False)
     computeWokCoords(mjd, site)
     fitFiberCenters(mjd, site, reprocess=True)
 
