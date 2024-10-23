@@ -413,9 +413,10 @@ def getDitherTables(mjd, site, reprocess=False):
     for configID in configIDs:
         try:
             confpath = getConfSummPath(configID, site)
+            dfList.append(parseConfSummary(confpath))
         except:
             noConfF.append(configID)
-        dfList.append(parseConfSummary(confpath))
+
 
     # remove GFA images associated with a configuration
     # without a conf-summaryF file
