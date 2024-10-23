@@ -724,12 +724,16 @@ def plotReprocessFVC():
 
     plt.show()
 
-def plotGFADistortion(mjd=None):
+def plotGFADistortion(mjd=None, preNudge=False):
     dfList = []
     if mjd is not None:
         for _m in mjd:
             try:
-                dfList.append(pandas.read_csv("%i/dither_gfa_%i_lco.csv"%(_m,_m)).sort_values("gfaNum"))
+                if preNudge:
+                    pn = ".preGFA"
+                else:
+                    pn = ""
+                dfList.append(pandas.read_csv("%i%s/dither_gfa_%i_lco.csv"%(_m,pn,_m)).sort_values("gfaNum"))
             except:
                 dfList.append(pandas.read_csv("%i/dither_gfa_%i_apo.csv"%(_m,_m)).sort_values("gfaNum"))
 
@@ -787,7 +791,7 @@ def plotGFADistortion(mjd=None):
         plt.title(str(name))
 
         plt.figure(figsize=(8,8))
-        plt.quiver(group.xWokPred, group.yWokPred, group.dxWokFit, group.dyWokFit, angles="xy", units="xy", scale=0.03)
+        plt.quiver(group.xWokPred, group.yWokPred, group.dxWokFit, group.dyWokFit, angles="xy", units="xy", scale=0.08)
         plt.axis("equal")
         plt.title(str(name))
 
@@ -808,7 +812,7 @@ def plotGFADistortion(mjd=None):
 
     rms = numpy.sqrt(numpy.mean(df.drWok**2))*1000
     plt.figure(figsize=(8,8))
-    plt.quiver(df.xWokPred, df.yWokPred, df.dxWok, df.dyWok, angles="xy", units="xy", scale=0.001, width=0.1)
+    plt.quiver(df.xWokPred, df.yWokPred, df.dxWok, df.dyWok, angles="xy", units="xy", scale=0.002, width=0.1)
     plt.xlabel("x wok (mm)")
     plt.ylabel("y wok (mm)")
     plt.title("rms err: %.1f micron"%rms)
@@ -816,7 +820,7 @@ def plotGFADistortion(mjd=None):
 
     rms = numpy.sqrt(numpy.mean(df.drWokFit**2))*1000
     plt.figure(figsize=(8,8))
-    plt.quiver(df.xWokPred, df.yWokPred, df.dxWokFit, df.dyWokFit, angles="xy", units="xy", scale=0.001, width=0.1)
+    plt.quiver(df.xWokPred, df.yWokPred, df.dxWokFit, df.dyWokFit, angles="xy", units="xy", scale=0.002, width=0.1)
     plt.title("rms err: %.1f micron"%rms)
     plt.xlabel("x wok (mm)")
     plt.ylabel("y wok (mm)")
@@ -882,32 +886,34 @@ if __name__ == "__main__":
     # plt.show()
 
     # merge_all(mjds=[60521,60528])
-    # plotStars()
+    # # plotStars()
 
+    # # import pdb; pdb.set_trace()
+
+    # plotGFADistortion(mjd=[60521,60528], preNudge=True)
+    # plt.show()
     # import pdb; pdb.set_trace()
+    # # plotAll()
+    # # plotAll(mjd=60448) # apo, good after fiducial fixes
 
-    # plotGFADistortion(mjd=[60521,60528])
-    # plotAll()
-    # plotAll(mjd=60448) # apo, good after fiducial fixes
+    # # plotAll(mjd=60229) # after baffle rotation
+    # # plotAll(mjd=60371) # after IMB change
+    # # plotAll(mjd=60520) # new (bad) mount lco
 
-    # plotAll(mjd=60229) # after baffle rotation
-    # plotAll(mjd=60371) # after IMB change
-    # plotAll(mjd=60520) # new (bad) mount lco
+    # merge_all(mjds=[60521,60528, 60573, 60575, 60576])
+    # plotGFADistortion(mjd=[60521,60528, 60573, 60575, 60576])
+    # plotAll(mjd=[60521,60528, 60573, 60575, 60576]) # mount loosened
+    # plotFVCdistortion(mjd=[60521,60528, 60573, 60575, 60576], fiducialOut="fiducial_coords_lco_60576.csv") # writes new file for fiducial positions
 
-    # merge_all(mjds=[60521,60528])
-    # plotGFADistortion(mjd=[60521,60528])
-    # plotAll(mjd=[60521,60528]) # mount loosened
-    # plotFVCdistortion(mjd=[60521,60528]) # writes new file for fiducial positions
-
-    #merge_all(mjds=[60529, 60537])
+    # merge_all(mjds=[60521,60528,60573])
     #plotAll(mjd=[60529, 60537]) # apo post shutdown
-    #plotGFADistortion(mjd=[60529, 60537])
+    plotGFADistortion(mjd=[60521,60528,60573], preNudge=True)
     #plotFVCdistortion(mjd=[60529, 60537], fiducialOut="fiducial_coords_apo_60537_nudge_fit.csv")
 
     # merge_all(mjds=[60558]) # apo post nudge
     # merge_all(mjds=[60572]) # apo bright time eng
     # plotAll(mjd=[60572])
-    plotGFADistortion(mjd=[60572])
+    # plotGFADistortion(mjd=[60572])
     # plotFVCdistortion(mjd=[60572], fiducialOut="fiducial_coords_apo_60572.csv")
 
     # plotBetaArm(mjd=60521)

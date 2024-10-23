@@ -274,8 +274,8 @@ def getGFATables(mjd, site, reprocess=False):
             t["SOLVMODE"] = "coordio-reproc"
 
             t["guideErrRA"] = sp.delta_ra
-            t["guideErrRA"] = sp.delta_dec
-            t["guideErrRA"] = sp.delta_rot
+            t["guideErrDec"] = sp.delta_dec
+            t["guideErrRot"] = sp.delta_rot
             t["guideRMS"] = sp.guide_rms
             t["guideFitRMS"] = sp.fit_rms
 
