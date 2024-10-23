@@ -409,9 +409,18 @@ def getDitherTables(mjd, site, reprocess=False):
     dfList = []
 
     # get confsummary data
+    noConfF = []
     for configID in configIDs:
-        confpath = getConfSummPath(configID, site)
+        try:
+            confpath = getConfSummPath(configID, site)
+        except:
+            noConfF.append(configID)
         dfList.append(parseConfSummary(confpath))
+
+    # remove GFA images associated with a configuration
+    # without a conf-summaryF file
+    dfGFA = dfGFA[~dfGFA.configID.isin(noConfF)]
+
     dfConfSumm = pandas.concat(dfList)
 
     # get spectroflux data
