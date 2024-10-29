@@ -10,7 +10,7 @@ from coordio.transforms import FVCTransformAPO
 from astropy.io import fits
 from astropy.table import Table
 
-cp = sns.color_palette("husl", 11)
+cp = sns.color_palette("husl", 14)
 POLIDS=numpy.array([0, 1, 2, 3, 4, 5, 6, 9, 20, 27, 28, 29, 30])
 RMAX = 310
 
@@ -858,6 +858,7 @@ def plotScale():
 
     # plt.show()
 
+
 def plotStars():
     df = pandas.read_csv("ditherFit_all_merged.csv")
     df = df[["configID", "mjd", "camera", "fiberID", "xWokStarPredict", "yWokStarPredict", "xWokDitherFit", "yWokDitherFit"]]
@@ -878,6 +879,41 @@ def plotStars():
         plt.title(str(name))
     plt.show()
 
+
+def plotFWHMs():
+    df = pandas.read_csv("ditherFit_all_merged.csv")
+    plt.figure()
+    for name, group in df.groupby("configID"):
+        fwhmGFA = group.fwhm.to_numpy()
+        fwhmWok = 2.355*group.sigmaWokDitherFit.to_numpy()/217.7358*3600
+        medGFA = numpy.median(fwhmGFA)
+        lowGFA = numpy.percentile(fwhmGFA, 25)
+        highGFA = numpy.percentile(fwhmGFA, 75)
+        medWok = numpy.median(fwhmWok)
+        lowWok = numpy.percentile(fwhmWok, 25)
+        highWok = numpy.percentile(fwhmWok, 75)
+        xerr = numpy.array([[lowGFA, highGFA]]).T
+        yerr = numpy.array([[lowWok, highWok]]).T
+
+
+        meanGFA = numpy.mean(fwhmGFA)
+        xerr = numpy.std(fwhmGFA)
+
+        meanWok = numpy.mean(fwhmWok)
+        yerr = numpy.std(fwhmWok)
+        # print(fwhm, sigWok)
+        plt.errorbar(meanGFA, meanWok, xerr=xerr, yerr=yerr, color="black")
+
+    plt.xlabel("fwhm (GFA)")
+    plt.ylabel("fwhm (dither)")
+    plt.axis("equal")
+    plt.xlim([1,3])
+    # plt.ylim([1,3])
+    plt.show()
+
+        # for col in list(df.columns):
+        #     if col.endswith("_gfa"):
+        #         print(col)
         # import pdb; pdb.set_trace()
 
 
@@ -905,10 +941,11 @@ if __name__ == "__main__":
     # plotAll(mjd=[60521,60528, 60573, 60575, 60576]) # mount loosened
     # plotFVCdistortion(mjd=[60521,60528, 60573, 60575, 60576], fiducialOut="fiducial_coords_lco_60576.csv") # writes new file for fiducial positions
 
-    # merge_all(mjds=[60521,60528,60573])
-    #plotAll(mjd=[60529, 60537]) # apo post shutdown
-    plotGFADistortion(mjd=[60521,60528,60573], preNudge=True)
-    #plotFVCdistortion(mjd=[60529, 60537], fiducialOut="fiducial_coords_apo_60537_nudge_fit.csv")
+    # merge_all(mjds=[60529, 60537, 60558, 60572])
+    plotAll(mjd=[60529, 60537, 60558, 60572]) # apo post shutdown
+    # plotGFADistortion(mjd=[60529, 60537, 60558, 60572])
+    # plotFVCdistortion(mjd=[60529, 60537, 60558, 60572], fiducialOut="junk_coords.csv")
+    plotFWHMs()
 
     # merge_all(mjds=[60558]) # apo post nudge
     # merge_all(mjds=[60572]) # apo bright time eng
@@ -925,6 +962,14 @@ if __name__ == "__main__":
     # reprocessFVC()
     # plotReprocessFVC()
     # plotPAvsDec()
+
+
+    # dither script testing
+    # merge_all(mjds=[60606])
+    # plotAll(mjd=[60606])
+    # plotGFADistortion(mjd=[60606])
+    # plotFVCdistortion(mjd=[60606], fiducialOut="junk_coords_apo.csv")
+
 
 
     plt.show()
