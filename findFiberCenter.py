@@ -77,16 +77,6 @@ def minimizeMe2(x, sigma, starx, stary, flux):
     return numpy.mean((fHats-flux)**2)
 
 
-# def minimizeMe3(x, starx, stary, flux):
-#     amp, sigma, fibx, fiby = x
-#     fHats = []
-#     for _xs,_ys in zip(starx, stary):
-#         loc = (_xs-fibx)**2/sigma**2 + (_ys-fiby)**2/sigma**2
-#         f = stats.ncx2.cdf(amp**2/sigma**2, nc=loc, df=2)
-#         fHats.append(f)
-#     fHats = numpy.array(fHats)
-#     return numpy.mean((fHats-flux)**2)
-
 
 def weightedCenter(starx, stary, flux):
     asort = numpy.argsort(flux)
@@ -154,51 +144,6 @@ def plotContour(ax, xStar, yStar, sigma, amp, xMin=-.23, xMax=.23, yMin=-.23, yM
     yMax = numpy.max(y) - 0.02
     return (vmin, vmax), (xMin,xMax), (yMin,yMax)
 
-    # plt.axis("equal")
-
-
-# def fitOne(posIdConfigID, returnVals=False):
-#     positionerId, configID = posIdConfigID
-#     try:
-#         os.nice(5)
-
-#         df = pandas.read_csv("holtzScrapeMerged.csv")
-#         df = df[(df.positionerId==positionerId)&(df.configID==configID)]
-#         # make sure we actually have dithers to fit!
-#         if len(df) < 5:
-#             return
-#         xstar = df.xOff.to_numpy()
-#         ystar = df.yOff.to_numpy()
-#         flux = df.spectroflux.to_numpy()
-#         sigma = numpy.median(df.sigmaGFA)
-#         fitAmp, fitSigma, fitFiberX, fitFiberY = fitOneSet(xstar,ystar,flux,sigma,fitSigma=True)
-#         if returnVals:
-#             return fitAmp, fitSigma, fitFiberX, fitFiberY
-#         else:
-#             # write a new csv
-#             df["fitAmp"] = fitAmp
-#             df["fitSigma"] = fitSigma
-#             df["fitFiberX"] = fitFiberX
-#             df["fitFiberY"] = fitFiberY
-#             df.to_csv("fitPositioner_%i_%i.csv"%(positionerId, configID))
-#     except:
-#         print(positionerId, configID, "fit failed")
-
-
-# def fitAll():
-#     df = pandas.read_csv("holtzScrapeMerged.csv")
-
-#     _posIdConfigID = []
-#     confList = list(set(df.configID))
-#     for conf in confList:
-#         _df = df[df.configID==conf]
-#         posList = list(set(_df.positionerId))
-#         for posId in posList:
-#             _posIdConfigID.append([posId,conf])
-
-#     p = Pool(30)
-#     p.map(fitOne, _posIdConfigID)
-#     p.close()
 
 
 def _plotOne(fitFiberX, fitFiberY, fitSigma, fitAmp, xStar, yStar, spectroflux, mjd, fiberID, configID, r_mag, camera):
@@ -218,9 +163,6 @@ def _plotOne(fitFiberX, fitFiberY, fitSigma, fitAmp, xStar, yStar, spectroflux, 
     ax1.set_xlim(xMinMax)
     ax1.axhline(fitFiberY, ls="--", color="white", alpha=0.5)
     ax1.axvline(fitFiberX, ls="--", color="white", alpha=0.5)
-    # dxy = ((xStar-fitFiberX))
-    # plt.title("%i %i sigma=%.3f flux=%.0f"%(TEST_ROBOT, TEST_CONFIG, fitSigma, fitAmp))
-    # dxyStr = "fit results\n-----------\nstar dxy = [%.0f, %.0f]"%(fitFiberX*1000,fitFiberY*1000) + r" $\mu$m"
     sigStr = r"$\sigma$" + " = %.3f "%(fitSigma*1000) + r"$\mu$m"
     seeingStr = "FWHM = %.1f arcsec"%(fitSigma*1000/60*2.355)
     fluxStr = r"$f_o$" + " = %.0f "%fitAmp + r"e$^-$/sec"
@@ -239,207 +181,39 @@ def _plotOne(fitFiberX, fitFiberY, fitSigma, fitAmp, xStar, yStar, spectroflux, 
     ax1.text(xMinMax[0]+.01, yMinMax[1]-.01, infoText, ha="left", va="top", color="white")
     ax1.text(xMinMax[0]+.01, yMinMax[0]+.01, fitText, ha="left", va="bottom", color="white")
 
-    # without the color background
-    # plt.savefig("fluxSolve_%i_%i.png"%(TEST_ROBOT,TEST_CONFIG), dpi=200)
 
-    # plt.figure(figsize=(8,8))
-    # ax = plt.gca()
-    # hueNorm = plotContour(ax, fitFiberX, fitFiberY, fitSigma, fitAmp)
-    # sns.scatterplot(ax=ax2, x="xOff", y="yOff", hue="spectroflux", s=100, data=_hc, palette=cpMap, hue_norm=hueNorm)
-    # ax2.set_aspect("equal")
-    # if xaxis:
-    #     ax2.set_xlabel("dx (mm)")
-    # else:
-    #     ax2.set_xticks([])
-    #     x_axis = ax2.axes.get_xaxis()
-    #     label = x_axis.get_label()
-    #     label.set_visible(False)
-    # if yaxis:
-    #     ax2.set_ylabel("dy (mm)")
-    # else:
-    #     ax2.set_yticks([])
-    #     y_axis = ax2.axes.get_yaxis()
-    #     label = y_axis.get_label()
-    #     label.set_visible(False)
+def createIntegrationGrid(minSig, maxSig, nStepSig, minOff, maxOff, nStepOff):
+    # sigma is gaussian sigma in mm
+    # offset is star to fiber offset in mm
+    sigs = numpy.linspace(minSig, maxSig, nStepSig)
+    offs = numpy.linspace(minOff, maxOff, nStepOff)
 
-    # ax2.set_xlim(xMinMax)
-    # ax2.set_ylim(yMinMax)
-    # ax2.legend(loc="upper right", title="flux\n"+r"(e$^-$/sec)")
-    # ax2.text(xMinMax[0]+.01, yMinMax[1]-.01, infoText, ha="left", va="top", color="black")
-    # # ax2.set_savefig("fluxData_%i_%i.png"%(TEST_ROBOT,TEST_CONFIG), dpi=200)
+    outArr = numpy.zeros((nStepSig,nStepOff))
+    _sigs = []
+    _offs = []
+    _flux = []
 
-# def testOne(TEST_ROBOT, TEST_CONFIG, ax1, ax2,xaxis=True,yaxis=True):
-#     hc = pandas.read_csv("holtzScrape.csv")
-#     hc["configID"] = hc.configurationId
-#     # convert cherno offsets to mm offsets
-#     xOff = hc.dChernoDec * MM_PER_AS
-#     yOff = hc.dChernoRA * MM_PER_AS
-#     hc["xOff"] = xOff
-#     hc["yOff"] = yOff
+    for ii, s in enumerate(sigs):
+        for jj, o in enumerate(offs):
+            amp = 1
+            sigma = s
+            starx = 0
+            stary = 0
+            fibx = 0
+            fiby = o
+            ptr_to_buffer = (ctypes.c_double * 6)(amp, sigma, starx, stary, fibx, fiby)
+            user_data = ctypes.cast(ptr_to_buffer, ctypes.c_void_p)
+            cIntegrand = LowLevelCallable(lib.f, user_data)
+            A, err = dblquad(cIntegrand, 0, 2*numpy.pi, 0, FIBER_RAD)
+            # _sigs.append(s)
+            # _offs.append(o)
+            # _flux.append(A)
+            outArr[ii,jj] = A
 
-#     files = glob.glob("stage1/configImgNum/dither*.csv")
-
-#     mc = pandas.concat([pandas.read_csv(x) for x in files])
-#     mc = mc.drop_duplicates()
-#     mc["fiberID"] = mc.fiberId
-
-#     validConfigs = list(set(hc.configID))
-#     mc = mc[mc.configID.isin(validConfigs)]
-
-#     # print("len before", len(hc))
-#     _dfList = []
-#     for config in validConfigs:
-#         _a = hc[hc.configID==config].copy()
-#         _b = mc[mc.configID==config]
-
-#         # keep only fibers on target
-#         sb = set(_b.fiberID)
-#         _a = _a[_a.fiberID.isin(list(sb))]
-#         _dfList.append(_a)
-
-#     hc = pandas.concat(_dfList)
+    return sigs, offs, outArr
 
 
-#     hc = hc.merge(mc, on=["configID", "sciImgNum", "fiberID"], suffixes=(None, "_mc"))
-#     hc.to_csv("holtzScrapeMerged.csv", index=False)
 
-#     # print("robot options", set(hc.positionerId))
-
-#     # hc1 = hc[hc.positionerId==TEST_ROBOT]
-#     # hc1 = hc1[hc1.configID==TEST_CONFIG]
-
-#     # plotFlux(TEST_ROBOT, TEST_CONFIG, hc)
-
-#     _hc = hc[(hc.positionerId == TEST_ROBOT) & (hc.configID == TEST_CONFIG)]
-
-#     vmin = numpy.min(_hc.spectroflux.to_numpy())
-#     vmax = numpy.max(_hc.spectroflux.to_numpy())
-#     hueNorm = [vmin, vmax]
-
-
-#     xstar = _hc.xOff.to_numpy()
-#     ystar = _hc.yOff.to_numpy()
-#     flux = _hc.spectroflux.to_numpy()
-#     sigma = numpy.median(_hc.sigmaGFA)
-
-#     tstart = time.time()
-#     out = fitOne([TEST_ROBOT, TEST_CONFIG], returnVals=True)
-#     if out is None:
-#         return
-#     fitAmp, fitSigma, fitFiberX, fitFiberY = out
-#     print("fitSigma", TEST_ROBOT, TEST_CONFIG, fitSigma, fitAmp)
-#     print("minimize took", time.time()-tstart)
-
-#     # plt.figure(figsize=(8,8))
-#     # ax = plt.gca()
-#     hueNorm,xMinMax,yMinMax = plotContour(ax1, fitFiberX, fitFiberY, fitSigma, fitAmp)
-#     sns.scatterplot(ax=ax1, x="xOff", y="yOff", hue="spectroflux", s=100, data=_hc, palette=cpMap, hue_norm=hueNorm)
-#     ax1.set_aspect("equal")
-#     if xaxis:
-#         ax1.set_xlabel("dx (mm)")
-#     else:
-#         ax1.set_xticks([])
-#         x_axis = ax1.axes.get_xaxis()
-#         label = x_axis.get_label()
-#         label.set_visible(False)
-#     if yaxis:
-#         ax1.set_ylabel("dy (mm)")
-#     else:
-#         ax1.set_yticks([])
-#         y_axis = ax1.axes.get_yaxis()
-#         label = y_axis.get_label()
-#         label.set_visible(False)
-
-#     ax1.set_ylim(yMinMax)
-#     ax1.set_xlim(xMinMax)
-#     ax1.axhline(fitFiberY, ls="--", color="white", alpha=0.5)
-#     ax1.axvline(fitFiberX, ls="--", color="white", alpha=0.5)
-#     # plt.title("%i %i sigma=%.3f flux=%.0f"%(TEST_ROBOT, TEST_CONFIG, fitSigma, fitAmp))
-#     dxyStr = "fit results\n-----------\nstar dxy = [%.0f, %.0f]"%(fitFiberX*1000,fitFiberY*1000) + r" $\mu$m"
-#     sigStr = r"$\sigma$" + " = %.3f "%(fitSigma*1000) + r"$\mu$m"
-#     seeingStr = "FWHM = %.1f arcsec"%(fitSigma*1000/60*2.355)
-#     fluxStr = r"$f_o$" + " = %.0f "%fitAmp + r"e$^-$/sec"
-
-
-#     fitText = "\n".join([dxyStr,fluxStr,sigStr,seeingStr])
-
-#     mjdStr = "MJD = %i"%_hc.mjd.to_numpy()[0]
-#     fiberIDStr = "fiber id = %i"%_hc.fiberID.to_numpy()[0]
-#     confIDStr = "configuration id = %i"%TEST_CONFIG
-#     magStr = "star magnitude = %.2f"%(_hc.mag_r.to_numpy()[0])
-#     infoText = "\n".join([mjdStr, fiberIDStr, confIDStr, magStr])
-
-#     ax1.legend(loc="upper right", title="flux\n" +r"(e$^-$/sec)")
-#     ax1.text(xMinMax[0]+.01, yMinMax[1]-.01, infoText, ha="left", va="top", color="white")
-#     ax1.text(xMinMax[0]+.01, yMinMax[0]+.01, fitText, ha="left", va="bottom", color="white")
-#     # plt.savefig("fluxSolve_%i_%i.png"%(TEST_ROBOT,TEST_CONFIG), dpi=200)
-
-#     # plt.figure(figsize=(8,8))
-#     # ax = plt.gca()
-#     # hueNorm = plotContour(ax, fitFiberX, fitFiberY, fitSigma, fitAmp)
-#     sns.scatterplot(ax=ax2, x="xOff", y="yOff", hue="spectroflux", s=100, data=_hc, palette=cpMap, hue_norm=hueNorm)
-#     ax2.set_aspect("equal")
-#     if xaxis:
-#         ax2.set_xlabel("dx (mm)")
-#     else:
-#         ax2.set_xticks([])
-#         x_axis = ax2.axes.get_xaxis()
-#         label = x_axis.get_label()
-#         label.set_visible(False)
-#     if yaxis:
-#         ax2.set_ylabel("dy (mm)")
-#     else:
-#         ax2.set_yticks([])
-#         y_axis = ax2.axes.get_yaxis()
-#         label = y_axis.get_label()
-#         label.set_visible(False)
-
-#     ax2.set_xlim(xMinMax)
-#     ax2.set_ylim(yMinMax)
-#     ax2.legend(loc="upper right", title="flux\n"+r"(e$^-$/sec)")
-#     ax2.text(xMinMax[0]+.01, yMinMax[1]-.01, infoText, ha="left", va="top", color="black")
-#     # ax2.set_savefig("fluxData_%i_%i.png"%(TEST_ROBOT,TEST_CONFIG), dpi=200)
-
-#     # ax.plot(fitFiberX, fitFiberY, 'xr')
-
-#     # import pdb; pdb.set_trace()
-
-#     # plt.show()
-#     # plt.close("all")
-#     # df = hc.merge(mc, on=["configID", "fiberID"])
-
-#     # import pdb; pdb.set_trace()
-
-# def plotOneFiber():
-#     fig1, axs1 = plt.subplots(2,2,figsize=(10,10))
-#     fig2, axs2 = plt.subplots(2,2,figsize=(10,10))
-
-#     axs1 = axs1.flatten()
-#     axs2 = axs2.flatten()
-
-#     for ii,config in enumerate([5287,5301,5288,5316]):
-#         if ii == 0:
-#             xaxis=False
-#             yaxis=True
-#         elif ii == 1:
-#             xaxis=False
-#             yaxis=False
-#         elif ii == 2:
-#             xaxis=True
-#             yaxis=True
-#         else:
-#             xaxis=True
-#             yaxis=False
-#         ax1 = axs1[ii]
-#         ax2 = axs2[ii]
-#         testOne(1037, config,ax1,ax2,xaxis,yaxis)
-
-#     fig1.tight_layout()
-#     fig2.tight_layout()
-#     fig1.savefig("indDitherFit.pdf", bbox_inches="tight")
-#     fig2.savefig("indDitherData.pdf", bbox_inches="tight")
-
-#     plt.show()
 
 if __name__ == "__main__":
     # fitAll()
@@ -448,6 +222,28 @@ if __name__ == "__main__":
     # {5315, 5316, 5189, 5192, 5194, 5259, 5260, 5144, 5146, 5148, 5286, 5287, 5288, 5165, 5167, 5169, 5300, 5302}
     # testOne(1037, 5912)
     # bad ones [5189, 5144]
-    pass
+    nsteps= 1000
+    import time; tstart = time.time()
+    sigs, offs, flux = createIntegrationGrid(0, .25, nsteps, 0, 1.5, nsteps)
+    print("time took", time.time()-tstart)
+    from scipy.interpolate import RegularGridInterpolator
+    rgi = RegularGridInterpolator((sigs,offs), flux)
+
+    testsig = 0.060
+    testOff = 0.025
+
+    tstart = time.time()
+    Ahat = rgi((testsig,testOff))
+    print("interp took", time.time()-tstart)
+
+    tstart = time.time()
+    ptr_to_buffer = (ctypes.c_double * 6)(1, testsig, 0, 0, 0, testOff)
+    user_data = ctypes.cast(ptr_to_buffer, ctypes.c_void_p)
+    cIntegrand = LowLevelCallable(lib.f, user_data)
+    Aother, err = dblquad(cIntegrand, 0, 2*numpy.pi, 0, FIBER_RAD)
+    print("integrate took", time.time()-tstart)
+
+    print(Ahat, Aother, (Aother-Ahat)/Aother*100)
+
 
 
