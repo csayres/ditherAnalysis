@@ -37,7 +37,7 @@ if "Conors" in _hostname:
 elif "apogee" or "manga" in _hostname:
     LOCATION = "utah"
     OUT_DIR = "/uufs/chpc.utah.edu/common/home/u0449727/work/ditherAnalysis"
-    CORES = 27
+    CORES = 28
     gaia_connection_string = "postgresql://sdss_user@operations.sdss.org/sdss5db"
     gaia_connection_table = "catalogdb.gaia_dr2_source"
 elif "sdss5" in _hostname:
