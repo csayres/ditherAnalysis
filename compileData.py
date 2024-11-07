@@ -287,8 +287,12 @@ def getGFATables(mjd, site, reprocess=False):
 
     # dfGFA.to_csv("dither_gfa_%s_%i.csv"%(site,mjd))
     print("reprocessing gimgs", reprocSet)
-    for imgNum in list(reprocSet):
-        dfList.append(procOneGFA(imgNum, mjd, site))
+    # for imgNum in list(reprocSet):
+    #     dfList.append(procOneGFA(imgNum, mjd, site))
+
+    p = Pool(CORES)
+    fo = partial(procOneGFA, mjd=mjd, site=site)
+    p.map(fo, list(reprocSet))
 
         # imgs = getGFAFiles(mjd,site,imgNum)
         # sp = None
