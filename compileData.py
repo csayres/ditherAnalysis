@@ -762,7 +762,7 @@ def fitOne(name, reprocess=False):
     group = group[(group.configID==name[0]) & (group.fiberID==name[1]) & (group.camera==name[2])].reset_index(drop=True)
 
     group["spectroflux_corr"] = group.spectroflux * group.fluxcorr_mean
-    group = group.sort_values("spectroflux_corr", ascenting=False)
+    group = group.sort_values("spectroflux_corr", ascending=False)
 
 
     # set initial guess for sigma based on sigma measured from guider psfs
