@@ -126,12 +126,101 @@ def getConfSummPath(configID, site, location=LOCATION):
 
     return confPath
 
+def procOneGFA(imgNum, mjd, site):
+    imgs = getGFAFiles(mjd,site,imgNum)
+    sp = None
+    for img in imgs:
+        ff = fits.open(img)
+        if sp is None:
+            sp = SolvePointing(
+                raCen=ff[1].header["RAFIELD"],
+                decCen=ff[1].header["DECFIELD"],
+                paCen=ff[1].header["FIELDPA"],
+                offset_ra=ff[1].header["AOFFRA"],
+                offset_dec=ff[1].header["AOFFDEC"],
+                offset_pa=ff[1].header["AOFFPA"],
+                db_conn_st=gaia_connection_string,
+                db_tab_name=gaia_connection_table
+            )
+        wcs = None
+        if ff[1].header["SOLVED"]:
+            wcs = WCS(ff[1].header)
+            # field could be solved but not every
+            # gfa has a wcs
+            if "CTYPE1" not in wcs.to_header():
+                wcs = None
+        sp.add_gimg(
+            img,
+            Table(ff["CENTROIDS"].data).to_pandas(),
+            wcs,
+            ff[1].header["GAIN"]
+        )
+        ff.close()
+
+    print("n wcs", len(sp.gfaWCS))
+    if len(sp.gfaWCS) < 2:
+        # skip need at least 2 wcs solns for
+        # coordio solve
+        print("skipping gimg with < 2 wcs solns", imgNum)
+        return None
+    try:
+        sp.solve()
+    except Exception as e:
+        print("skipping gimg (solve failed)", site, mjd, imgNum)
+        print(e)
+        return None
+    for img in imgs:
+        ff = fits.open(img)
+        toks = img.split("-")
+        offra = ff[1].header["OFFRA"]
+        offdec = ff[1].header["OFFDEC"]
+        imgNum = int(toks[-1].strip(".fits"))
+
+        offpa = ff[1].header["AOFFPA"]
+
+        if site == "apo":
+            gfaNum = int(toks[-2].strip("gfa").strip("n"))
+        else:
+            gfaNum = int(toks[-2].strip("gfa").strip("s"))
+
+        # table has zps for all gfas
+        t = sp.matchedSources[sp.matchedSources.gfaNum == gfaNum].reset_index(drop=True)
+        t["gfaImgNum"] = imgNum
+        t["configID"] = ff[1].header["CONFIGID"]
+        t["offra"] = offra
+        t["offdec"] = offdec
+        t["offpa"] = offpa
+        t["bossExpNum"] = -999
+        t["file_path"] = img
+        t["gfaDateObs"] = ff[1].header["DATE-OBS"]
+        t["gfaExptime"] = ff[1].header["EXPTIMEN"]
+        t["guideFWHM"] = ff[1].header["FWHM"]
+
+
+        t["taiMid"] = sp.obsTimeRef.mjd * 24 * 60 * 60
+        t["SOL_RA"] = sp.raCenMeas
+        t["SOL_DEC"] = sp.decCenMeas
+        t["SOL_PA"] = sp.paCenMeas
+        t["SOL_SCL"] = sp.scaleMeas
+        t["SOL_ALT"] = sp.altCenMeas
+        t["SOL_AZ"] = sp.azCenMeas
+        t["SOLVMODE"] = "coordio-reproc"
+
+        t["guideErrRA"] = sp.delta_ra
+        t["guideErrDec"] = sp.delta_dec
+        t["guideErrRot"] = sp.delta_rot
+        t["guideRMS"] = sp.guide_rms
+        t["guideFitRMS"] = sp.fit_rms
+
+        # t["FWHM_FIT"] = ff[1].header["FWHM_FIT"]
+        ff.close()
+        return t
+            # dfList.append(t)
+
 
 def getGFATables(mjd, site, reprocess=False):
     site = site.lower()
     files = getGFAFiles(mjd, site)
-
-
 
     reprocSet = set()
 
@@ -199,94 +288,96 @@ def getGFATables(mjd, site, reprocess=False):
     # dfGFA.to_csv("dither_gfa_%s_%i.csv"%(site,mjd))
     print("reprocessing gimgs", reprocSet)
     for imgNum in list(reprocSet):
-        imgs = getGFAFiles(mjd,site,imgNum)
-        sp = None
-        for img in imgs:
-            ff = fits.open(img)
-            if sp is None:
-                sp = SolvePointing(
-                    raCen=ff[1].header["RAFIELD"],
-                    decCen=ff[1].header["DECFIELD"],
-                    paCen=ff[1].header["FIELDPA"],
-                    offset_ra=ff[1].header["AOFFRA"],
-                    offset_dec=ff[1].header["AOFFDEC"],
-                    offset_pa=ff[1].header["AOFFPA"],
-                    db_conn_st=gaia_connection_string,
-                    db_tab_name=gaia_connection_table
-                )
-            wcs = None
-            if ff[1].header["SOLVED"]:
-                wcs = WCS(ff[1].header)
-                # field could be solved but not every
-                # gfa has a wcs
-                if "CTYPE1" not in wcs.to_header():
-                    wcs = None
-            sp.add_gimg(
-                img,
-                Table(ff["CENTROIDS"].data).to_pandas(),
-                wcs,
-                ff[1].header["GAIN"]
-            )
-            ff.close()
+        dfList.append(procOneGFA(imgNum, mjd, site))
 
-        print("n wcs", len(sp.gfaWCS))
-        if len(sp.gfaWCS) < 2:
-            # skip need at least 2 wcs solns for
-            # coordio solve
-            print("skipping gimg with < 2 wcs solns", imgNum)
-            continue
-        try:
-            sp.solve()
-        except Exception as e:
-            print("skipping gimg (solve failed)", site, mjd, imgNum)
-            print(e)
-            continue
-        for img in imgs:
-            ff = fits.open(img)
-            toks = img.split("-")
-            offra = ff[1].header["OFFRA"]
-            offdec = ff[1].header["OFFDEC"]
-            imgNum = int(toks[-1].strip(".fits"))
+        # imgs = getGFAFiles(mjd,site,imgNum)
+        # sp = None
+        # for img in imgs:
+        #     ff = fits.open(img)
+        #     if sp is None:
+        #         sp = SolvePointing(
+        #             raCen=ff[1].header["RAFIELD"],
+        #             decCen=ff[1].header["DECFIELD"],
+        #             paCen=ff[1].header["FIELDPA"],
+        #             offset_ra=ff[1].header["AOFFRA"],
+        #             offset_dec=ff[1].header["AOFFDEC"],
+        #             offset_pa=ff[1].header["AOFFPA"],
+        #             db_conn_st=gaia_connection_string,
+        #             db_tab_name=gaia_connection_table
+        #         )
+        #     wcs = None
+        #     if ff[1].header["SOLVED"]:
+        #         wcs = WCS(ff[1].header)
+        #         # field could be solved but not every
+        #         # gfa has a wcs
+        #         if "CTYPE1" not in wcs.to_header():
+        #             wcs = None
+        #     sp.add_gimg(
+        #         img,
+        #         Table(ff["CENTROIDS"].data).to_pandas(),
+        #         wcs,
+        #         ff[1].header["GAIN"]
+        #     )
+        #     ff.close()
 
-            offpa = ff[1].header["AOFFPA"]
+        # print("n wcs", len(sp.gfaWCS))
+        # if len(sp.gfaWCS) < 2:
+        #     # skip need at least 2 wcs solns for
+        #     # coordio solve
+        #     print("skipping gimg with < 2 wcs solns", imgNum)
+        #     continue
+        # try:
+        #     sp.solve()
+        # except Exception as e:
+        #     print("skipping gimg (solve failed)", site, mjd, imgNum)
+        #     print(e)
+        #     continue
+        # for img in imgs:
+        #     ff = fits.open(img)
+        #     toks = img.split("-")
+        #     offra = ff[1].header["OFFRA"]
+        #     offdec = ff[1].header["OFFDEC"]
+        #     imgNum = int(toks[-1].strip(".fits"))
 
-            if site == "apo":
-                gfaNum = int(toks[-2].strip("gfa").strip("n"))
-            else:
-                gfaNum = int(toks[-2].strip("gfa").strip("s"))
+        #     offpa = ff[1].header["AOFFPA"]
 
-            # table has zps for all gfas
-            t = sp.matchedSources[sp.matchedSources.gfaNum == gfaNum].reset_index(drop=True)
-            t["gfaImgNum"] = imgNum
-            t["configID"] = ff[1].header["CONFIGID"]
-            t["offra"] = offra
-            t["offdec"] = offdec
-            t["offpa"] = offpa
-            t["bossExpNum"] = -999
-            t["file_path"] = img
-            t["gfaDateObs"] = ff[1].header["DATE-OBS"]
-            t["gfaExptime"] = ff[1].header["EXPTIMEN"]
-            t["guideFWHM"] = ff[1].header["FWHM"]
+        #     if site == "apo":
+        #         gfaNum = int(toks[-2].strip("gfa").strip("n"))
+        #     else:
+        #         gfaNum = int(toks[-2].strip("gfa").strip("s"))
+
+        #     # table has zps for all gfas
+        #     t = sp.matchedSources[sp.matchedSources.gfaNum == gfaNum].reset_index(drop=True)
+        #     t["gfaImgNum"] = imgNum
+        #     t["configID"] = ff[1].header["CONFIGID"]
+        #     t["offra"] = offra
+        #     t["offdec"] = offdec
+        #     t["offpa"] = offpa
+        #     t["bossExpNum"] = -999
+        #     t["file_path"] = img
+        #     t["gfaDateObs"] = ff[1].header["DATE-OBS"]
+        #     t["gfaExptime"] = ff[1].header["EXPTIMEN"]
+        #     t["guideFWHM"] = ff[1].header["FWHM"]
 
 
-            t["taiMid"] = sp.obsTimeRef.mjd * 24 * 60 * 60
-            t["SOL_RA"] = sp.raCenMeas
-            t["SOL_DEC"] = sp.decCenMeas
-            t["SOL_PA"] = sp.paCenMeas
-            t["SOL_SCL"] = sp.scaleMeas
-            t["SOL_ALT"] = sp.altCenMeas
-            t["SOL_AZ"] = sp.azCenMeas
-            t["SOLVMODE"] = "coordio-reproc"
+        #     t["taiMid"] = sp.obsTimeRef.mjd * 24 * 60 * 60
+        #     t["SOL_RA"] = sp.raCenMeas
+        #     t["SOL_DEC"] = sp.decCenMeas
+        #     t["SOL_PA"] = sp.paCenMeas
+        #     t["SOL_SCL"] = sp.scaleMeas
+        #     t["SOL_ALT"] = sp.altCenMeas
+        #     t["SOL_AZ"] = sp.azCenMeas
+        #     t["SOLVMODE"] = "coordio-reproc"
 
-            t["guideErrRA"] = sp.delta_ra
-            t["guideErrDec"] = sp.delta_dec
-            t["guideErrRot"] = sp.delta_rot
-            t["guideRMS"] = sp.guide_rms
-            t["guideFitRMS"] = sp.fit_rms
+        #     t["guideErrRA"] = sp.delta_ra
+        #     t["guideErrDec"] = sp.delta_dec
+        #     t["guideErrRot"] = sp.delta_rot
+        #     t["guideRMS"] = sp.guide_rms
+        #     t["guideFitRMS"] = sp.fit_rms
 
-            # t["FWHM_FIT"] = ff[1].header["FWHM_FIT"]
-            dfList.append(t)
-            ff.close()
+        #     # t["FWHM_FIT"] = ff[1].header["FWHM_FIT"]
+        #     dfList.append(t)
+        #     ff.close()
 
             # print(wcs)
             # import pdb; pdb.set_trace()
@@ -700,7 +791,7 @@ def fitFiberCenters(mjd, site, reprocess=False): #df):
         groupNames.append(name)
 
     for name in groupNames:
-        fitOne(name)
+        fitOne(name, reprocess=reprocess)
 
     # p = Pool(CORES)
     # fo = partial(fitOne, reprocess=reprocess)
