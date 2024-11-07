@@ -864,12 +864,12 @@ def fitFiberCenters(mjd, site, reprocess=False): #df):
     for name, group in df.groupby(["configID", "fiberID", "camera", "mjd", "site"]):
         groupNames.append(name)
 
-    for name in groupNames:
-        fitOne(name, reprocess=reprocess)
+    # for name in groupNames:
+    #     fitOne(name, reprocess=reprocess)
 
-    # p = Pool(CORES)
-    # fo = partial(fitOne, reprocess=reprocess)
-    # p.map(fo, groupNames)
+    p = Pool(CORES)
+    fo = partial(fitOne, reprocess=reprocess)
+    p.map(fo, groupNames)
 
 
 def plotDitherPSFs():
