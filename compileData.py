@@ -292,7 +292,7 @@ def getGFATables(mjd, site, reprocess=False):
 
     p = Pool(CORES)
     fo = partial(procOneGFA, mjd=mjd, site=site)
-    p.map(fo, list(reprocSet))
+    dfList.extend(p.map(fo, list(reprocSet)))
 
         # imgs = getGFAFiles(mjd,site,imgNum)
         # sp = None
