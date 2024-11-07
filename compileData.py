@@ -919,7 +919,7 @@ def plotFluxScatter(df):
 if __name__ == "__main__":
     mjd = int(sys.argv[1])
     site = sys.argv[2].lower()
-    getDitherTables(mjd, site, reprocess=False)
+    getDitherTables(mjd, site, reprocess=True)
     computeWokCoords(mjd, site)
     fitFiberCenters(mjd, site, reprocess=True)
 
