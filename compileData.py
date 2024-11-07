@@ -157,7 +157,7 @@ def procOneGFA(imgNum, mjd, site):
         )
         ff.close()
 
-    print("n wcs", len(sp.gfaWCS))
+    # print("n wcs", len(sp.gfaWCS))
     if len(sp.gfaWCS) < 2:
         # skip need at least 2 wcs solns for
         # coordio solve
