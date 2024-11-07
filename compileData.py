@@ -790,6 +790,7 @@ def fitOne(name, reprocess=False):
 
     group["fluxFit"] = fluxModel
 
+    group.drop('level_0', axis=1, inplace=True)
     # next perform leave one out cross verification, throwing out
     # one boss exposure and refitting, use previous solution as
     # initial guess to speed up fitter
