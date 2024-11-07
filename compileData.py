@@ -476,6 +476,31 @@ def getDitherTables(mjd, site, reprocess=False):
 
     # # print("len gfa before", len(dfGFA))
     dfGFA = pandas.concat(dfList)
+
+    # calcuate a flux normalization factor to apply
+    # to each boss exposure in dither sequence
+    dfList = []
+    for name, group in dfGFA.groupby("configID"):
+        group = group.copy().reset_index()
+        # only keep decent detections
+        group = group[group.peak > 2000]
+        group = group[group.peak < 50000]
+        group["aperflux"] = group.aperflux / group.gfaExptime
+        _dfm = group[["source_id", "aperflux"]].groupby("source_id").median().reset_index()
+        group = group.merge(_dfm, on="source_id", suffixes=(None, "_m"))
+        group["fluxcorr"] = group.aperflux / group.aperflux_m # per source-gfa-exposure
+        # next average over individual boss exposures
+        _df = group[["bossExpNum", "fluxcorr"]]
+        _dfm = _df.groupby("bossExpNum").mean().reset_index()
+        _dfsig = _df.groupby("bossExpNum").std().reset_index()
+        _dfm = _dfm.merge(_dfsig, on="bossExpNum", suffixes=("_mean", "_sigma"))
+        group = group.merge(_dfm, on="bossExpNum")
+        dfList.append(group)
+
+    dfGFA = pandas.concat(dfList)
+
+
+
     # bossExpNums = list(set(dfBoss.bossExpNum))
     # dfGFA = dfGFA[dfGFA.bossExpNum.isin(bossExpNums)]
 
@@ -503,30 +528,29 @@ def getDitherTables(mjd, site, reprocess=False):
     dfFVC.to_csv(newDir + "/dither_fvc_%i_%s.csv"%(mjd, site), index=False)
 
 
+# def _fluxNormGFA(dfGFA, plot=False):
+#     # adds a few normalization columns for flux measured
+#     dfGFA = dfGFA[dfGFA.aperflux/dfGFA.aperfluxerr > 400].reset_index(drop=True)
+#     # convert to flux / sec in case of variable gfa exptimes
+#     dfGFA["aperflux"] = dfGFA.aperflux / dfGFA.gfaExptime
+#     fluxRate = dfGFA[["source_id", "aperflux"]].groupby("source_id").median().reset_index()
+#     dfGFA = dfGFA.merge(fluxRate, on="source_id", suffixes=(None, "_median"))
+#     dfGFA["fluxCoor"] = dfGFA.aperflux / dfGFA.aperflux_median
+#     if plot:
+#         plt.figure(figsize=(8,8))
+#         for idx, group in dfGFA.groupby("source_id"):
+#             group = group.sort_values("gfaImgNum")
+#             plt.plot(group.gfaImgNum, group.fluxCoor, '.k', alpha=0.5)
+#         plt.ylim([0.975,1.025])
 
-def _fluxNormGFA(dfGFA, plot=False):
-    # adds a few normalization columns for flux measured
-    dfGFA = dfGFA[dfGFA.aperflux/dfGFA.aperfluxerr > 400].reset_index(drop=True)
-    # convert to flux / sec in case of variable gfa exptimes
-    dfGFA["aperflux"] = dfGFA.aperflux / dfGFA.gfaExptime
-    fluxRate = dfGFA[["source_id", "aperflux"]].groupby("source_id").median().reset_index()
-    dfGFA = dfGFA.merge(fluxRate, on="source_id", suffixes=(None, "_median"))
-    dfGFA["fluxCoor"] = dfGFA.aperflux / dfGFA.aperflux_median
-    if plot:
-        plt.figure(figsize=(8,8))
-        for idx, group in dfGFA.groupby("source_id"):
-            group = group.sort_values("gfaImgNum")
-            plt.plot(group.gfaImgNum, group.fluxCoor, '.k', alpha=0.5)
-        plt.ylim([0.975,1.025])
+#     dfmed = dfGFA[["gfaImgNum", "fluxCoor"]].groupby("gfaImgNum").median().reset_index()
+#     dfGFA = dfGFA.merge(dfmed, on="gfaImgNum", suffixes=(None, "_median")).sort_values("gfaImgNum")
 
-    dfmed = dfGFA[["gfaImgNum", "fluxCoor"]].groupby("gfaImgNum").median().reset_index()
-    dfGFA = dfGFA.merge(dfmed, on="gfaImgNum", suffixes=(None, "_median")).sort_values("gfaImgNum")
+#     if plot:
+#         plt.plot(dfGFA.gfaImgNum, dfGFA.fluxCoor_median, '-r')
+#         plt.show()
 
-    if plot:
-        plt.plot(dfGFA.gfaImgNum, dfGFA.fluxCoor_median, '-r')
-        plt.show()
-
-    return dfGFA
+#     return dfGFA
 
 
 def computeWokCoords(mjd, site):
@@ -557,10 +581,12 @@ def computeWokCoords(mjd, site):
     dfList = []
     for camera in list(set(df.camera)):
         _df = df[df.camera == camera]
+
         if camera in ["b1", "b2"]:
             wl = "Boss"
         else:
             wl = "GFA"
+
         for name, group in _df.groupby(["mjd", "gfaImgNum"]):
             tobs = Time(group.gfaDateObs.iloc[0], scale="tai")
             tobs += TimeDelta(group.gfaExptime.iloc[0]/2, format="sec")
@@ -637,13 +663,15 @@ def fitOne(name, reprocess=False):
 
     group = pandas.read_csv(OUT_DIR + "/%i/dither_merged_%i_%s.csv"%(mjd,mjd,site))
     group = group[(group.configID==name[0]) & (group.fiberID==name[1]) & (group.camera==name[2])].reset_index(drop=True)
+
+    import pdb; pdb.set_trace()
     xStar = group.xWokStarPredict.to_numpy()
     yStar = group.yWokStarPredict.to_numpy()
     dxStar = group.dxWokStar.to_numpy()
     dyStar = group.dyWokStar.to_numpy()
     # xFiber = group.xWokMeasBOSS.to_numpy()
     # xFiber = group.yWokMeasBOSS.to_numpy()
-    flux = group.spectrofluxNorm.to_numpy()
+    flux = group.spectroflux.to_numpy()
     sigma = numpy.median(numpy.sqrt(group.xstd**2+group.ystd**2)) * 13.5 / 1000 # in mm
     fitAmp, fitSigma, fitFiberX, fitFiberY = fitOneSet(xStar, yStar, flux, sigma, fitSigma=True)
     _plotOne(
@@ -671,12 +699,12 @@ def fitFiberCenters(mjd, site, reprocess=False): #df):
     for name, group in df.groupby(["configID", "fiberID", "camera", "mjd", "site"]):
         groupNames.append(name)
 
-    # for name in groupNames:
-    #     fitOne(name)
+    for name in groupNames:
+        fitOne(name)
 
-    p = Pool(CORES)
-    fo = partial(fitOne, reprocess=reprocess)
-    p.map(fo, groupNames)
+    # p = Pool(CORES)
+    # fo = partial(fitOne, reprocess=reprocess)
+    # p.map(fo, groupNames)
 
 
 def plotDitherPSFs():
@@ -743,6 +771,7 @@ def plotDitherPSFs():
             ditherNum += 1
             plt.close("all")
         # import pdb; pdb.set_trace()
+
 
 def plot_zps():
     df = pandas.read_csv("allGFAMatches.csv")

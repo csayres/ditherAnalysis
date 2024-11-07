@@ -54,28 +54,28 @@ def fractionalFlux(amp, sigma, starx, stary, fibx, fiby):
     user_data = ctypes.cast(ptr_to_buffer, ctypes.c_void_p)
     cIntegrand = LowLevelCallable(lib.f, user_data)
     A, err = dblquad(cIntegrand, 0, 2*numpy.pi, 0, FIBER_RAD) #, args=(amp, sigma, starx, stary, fibx, fiby))
+
     return A
 
 
-def minimizeMe1(x, starx, stary, flux):
+def minimizeMe1(x, starx, stary, flux, flux_ivar=1):
     # fit sigma
     amp, sigma, fibx, fiby = x
     fHats = []
     for _xs,_ys in zip(starx, stary):
         fHats.append(fractionalFlux(amp, sigma, _xs, _ys, fibx, fiby))
     fHats = numpy.array(fHats)
-    return numpy.mean((fHats-flux)**2)
+    return numpy.mean(flux_ivar*(fHats-flux)**2)
 
 
-def minimizeMe2(x, sigma, starx, stary, flux):
-    # pass sigma
-    amp, fibx, fiby = x
+def minimizeMe2(x, amp, sigma, starx, stary, flux, flux_ivar=1):
+    # pass sigma and amplitude
+    fibx, fiby = x
     fHats = []
     for _xs,_ys in zip(starx, stary):
         fHats.append(fractionalFlux(amp, sigma, _xs, _ys, fibx, fiby))
     fHats = numpy.array(fHats)
-    return numpy.mean((fHats-flux)**2)
-
+    return numpy.mean(flux_ivar*(fHats-flux)**2)
 
 
 def weightedCenter(starx, stary, flux):
@@ -92,26 +92,62 @@ def weightedCenter(starx, stary, flux):
     # return meanx, meany
 
 
-def fitOneSet(starx, stary, flux, sigma, fitSigma=False, method="Powell"):
+def fitOneSet(xInit, starx, stary, flux, method="Powell", flux_ivar=1):
     # initial guess for fitter pick spot with most flux
-    amaxFlux = numpy.argmax(flux)
-    ampInit = flux[amaxFlux]
-    xFibInit = starx[amaxFlux]
-    yFibInit = stary[amaxFlux]
+    # amaxFlux = numpy.argmax(flux)
+    # ampInit = flux[amaxFlux]
+    # xFibInit = starx[amaxFlux]
+    # yFibInit = stary[amaxFlux]
+
+
+    # tstart = time.time()
+    # # fit all parameters
+    # xInit = numpy.array([ampInit, sigma, xFibInit, yFibInit])
 
     tstart = time.time()
-    if fitSigma:
-        xInit = numpy.array([ampInit, sigma, xFibInit, yFibInit])
-        _minimizeMe = partial(minimizeMe1, starx=starx, stary=stary, flux=flux)
-        minOut = minimize(_minimizeMe, xInit, method=method, options={"disp":True})
-        fitAmp, fitSigma, fitFiberX, fitFiberY = minOut.x
-    else:
-        xInit = numpy.array([ampInit, xFibInit, yFibInit])
-        _minimizeMe = partial(minimizeMe2, sigma=sigma, starx=starx, stary=stary, flux=flux)
-        minOut = minimize(_minimizeMe, xInit, method=method, options={"disp":True})
-        fitAmp, fitFiberX, fitFiberY = minOut.x
-        fitSigma = sigma
+    _minimizeMe = partial(minimizeMe1, starx=starx, stary=stary, flux=flux, flux_ivar=flux_ivar)
+    minOut = minimize(_minimizeMe, xInit, method=method) #, options={"disp":True})
+    fitAmp, fitSigma, fitFiberX, fitFiberY = minOut.x
     print("minimize took", time.time()-tstart)
+
+
+    # _fitFiberX = []
+    # _fitFiberY = []
+    # if bossExpNums is not None:
+    #     # LOOCV throwing out boss exposures one at a time
+    #     _bossExps = []
+    #     for bossExp in list(set(bossExpNums)):
+    #         _bossExps.append(bossExp)
+    #         keep = bossExpNums != bossExp
+    #         _starx = starx[keep]
+    #         _stary = stary[keep]
+    #         _flux = flux[keep]
+    #         if hasattr(flux_ivar, "__len__"):
+    #             _flux_ivar = flux_ivar[keep]
+    #         else:
+    #             _flux_ivar = flux_ivar
+    #         tstart = time.time()
+
+    #         # xInit = numpy.array([fitFiberX, fitFiberY])
+    #         # _minimizeMe = partial(minimizeMe2, amp=fitAmp, sigma=fitSigma, starx=_starx, stary=_stary, flux=_flux, flux_ivar=_flux_ivar)
+
+    #         xInit = numpy.array([fitAmp, fitSigma, fitFiberX, fitFiberY])
+    #         _minimizeMe = partial(minimizeMe1, starx=_starx, stary=_stary, flux=_flux, flux_ivar=_flux_ivar)
+
+    #         minOut = minimize(_minimizeMe, xInit, method=method) #, options={"disp":True})
+    #         print("quick minimize took", time.time()-tstart)
+    #         _junk1, _junk2, x, y = minOut.x
+    #         _fitFiberX.append(x)
+    #         _fitFiberY.append(y)
+            # import pdb; pdb.set_trace()
+
+    # else:
+    #     xInit = numpy.array([ampInit, xFibInit, yFibInit])
+    #     _minimizeMe = partial(minimizeMe2, sigma=sigma, starx=starx, stary=stary, flux=flux)
+    #     minOut = minimize(_minimizeMe, xInit, method=method) #, options={"disp":True})
+    #     fitAmp, fitFiberX, fitFiberY = minOut.x
+    #     fitSigma = sigma
+
     print(minOut)
     return fitAmp, fitSigma, fitFiberX, fitFiberY
 
@@ -146,7 +182,7 @@ def plotContour(ax, xStar, yStar, sigma, amp, xMin=-.23, xMax=.23, yMin=-.23, yM
 
 
 
-def _plotOne(fitFiberX, fitFiberY, fitSigma, fitAmp, xStar, yStar, spectroflux, mjd, fiberID, configID, r_mag, camera):
+def _plotOne(fitFiberX, fitFiberY, fitSigma, fitAmp, xStar, yStar, spectroflux, mjd, fiberID, configID, magStr, camera, site="apo"):
     plt.figure(figsize=(8,8))
     ax1 = plt.gca()
 
@@ -163,23 +199,32 @@ def _plotOne(fitFiberX, fitFiberY, fitSigma, fitAmp, xStar, yStar, spectroflux, 
     ax1.set_xlim(xMinMax)
     ax1.axhline(fitFiberY, ls="--", color="white", alpha=0.5)
     ax1.axvline(fitFiberX, ls="--", color="white", alpha=0.5)
-    sigStr = r"$\sigma$" + " = %.3f "%(fitSigma*1000) + r"$\mu$m"
-    seeingStr = "FWHM = %.1f arcsec"%(fitSigma*1000/60*2.355)
-    fluxStr = r"$f_o$" + " = %.0f "%fitAmp + r"e$^-$/sec"
+
+    if site == "apo":
+        _scale = 60 # microns per arcsec
+    elif site == "lco":
+        _scale = 92.3 # microns per arcsec
+    else:
+        raise RuntimeError("must specify apo or lco as site")
+    seeingStr = "      FWHM = %.1f arcsec"%(fitSigma*1000/_scale*2.355)
+    sigStr = r"                $\sigma$" + " = %.0f "%(fitSigma*1000) + r"$\mu$m"
+    fluxStr = r"               $f_o$" + " = %.2e "%fitAmp + r"e$^-$/sec"
+    ctrStr = "fiber center = (%.3f, %.3f) mm"%(fitFiberX, fitFiberY)
 
 
-    fitText = "\n".join([fluxStr,sigStr,seeingStr])
+    fitText = "\n".join([ctrStr, fluxStr,sigStr,seeingStr])
 
-    mjdStr = "MJD = %i"%mjd
-    camStr = "camera = %s"%(camera)
-    fiberIDStr = "fiber id = %i"%fiberID
-    confIDStr = "configuration id = %i"%configID
-    magStr = "star magnitude = %.2f"%(r_mag)
+    mjdStr =     "      MJD = %i"%mjd
+    camStr =     "   camera = %s"%(camera)
+    fiberIDStr = "   fiber id = %i"%fiberID
+    confIDStr =  "config id = %i"%configID
+    # magStr = "star magnitude = %.2f"%(r_mag)
     infoText = "\n".join([mjdStr, camStr, fiberIDStr, confIDStr, magStr])
 
     ax1.legend(loc="upper right", title="flux\n" +r"(e$^-$/sec)")
     ax1.text(xMinMax[0]+.01, yMinMax[1]-.01, infoText, ha="left", va="top", color="white")
     ax1.text(xMinMax[0]+.01, yMinMax[0]+.01, fitText, ha="left", va="bottom", color="white")
+
 
 
 def createIntegrationGrid(minSig, maxSig, nStepSig, minOff, maxOff, nStepOff):
