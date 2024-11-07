@@ -18,7 +18,7 @@ import sys
 from functools import partial
 
 from parseConfSummary import parseConfSummary
-from findFiberCenter import fitOneSet, _plotOne
+from findFiberCenter import fitOneSet, _plotOne, fractionalFlux
 
 # mjd = 60420
 import warnings
@@ -761,28 +761,95 @@ def fitOne(name, reprocess=False):
     group = pandas.read_csv(OUT_DIR + "/%i/dither_merged_%i_%s.csv"%(mjd,mjd,site))
     group = group[(group.configID==name[0]) & (group.fiberID==name[1]) & (group.camera==name[2])].reset_index(drop=True)
 
-    import pdb; pdb.set_trace()
-    xStar = group.xWokStarPredict.to_numpy()
-    yStar = group.yWokStarPredict.to_numpy()
-    dxStar = group.dxWokStar.to_numpy()
-    dyStar = group.dyWokStar.to_numpy()
-    # xFiber = group.xWokMeasBOSS.to_numpy()
-    # xFiber = group.yWokMeasBOSS.to_numpy()
-    flux = group.spectroflux.to_numpy()
-    sigma = numpy.median(numpy.sqrt(group.xstd**2+group.ystd**2)) * 13.5 / 1000 # in mm
-    fitAmp, fitSigma, fitFiberX, fitFiberY = fitOneSet(xStar, yStar, flux, sigma, fitSigma=True)
+    group["spectroflux_corr"] = group.spectroflux * group.fluxcorr_mean
+    group = group.sort_values("spectroflux_corr", ascenting=False)
+
+
+    # set initial guess for sigma based on sigma measured from guider psfs
+    sigmaInit = numpy.median(numpy.sqrt(group.xstd**2+group.ystd**2)) * 13.5 / 1000 # (guider informed) mm
+
+    # set initial guesses for fitter, use fiber position and flux amplitude
+    # at brightest flux respose
+    _maxFlux = group[group.bossExpNum==group.bossExpNum.iloc[0]][["spectroflux_corr", "xWokStarPredict", "yWokStarPredict"]].mean()  # sorted by high to low flux
+    xInit = numpy.array([_maxFlux.spectroflux_corr, sigmaInit, _maxFlux.xWokStarPredict, _maxFlux.yWokStarPredict])
+
+    fitAmp, fitSigma, fitFiberX, fitFiberY = fitOneSet(
+        xInit, group.xWokStarPredict, group.yWokStarPredict,
+        group.spectroflux_corr, flux_ivar=group.spectroflux_ivar
+    )
+
+    group["fluxAmpDitherFit"] = fitAmp
+    group["sigmaWokDitherFit"] = fitSigma
+    group["xWokDitherFit"] = fitFiberX
+    group["yWokDitherFit"] = fitFiberY
+
+    # calculate flux residuals for each gfa image
+    fluxModel = []
+    for xstar, ystar in group[["xWokStarPredict", "yWokStarPredict"]].to_numpy():
+        fluxModel.append(fractionalFlux(fitAmp, fitSigma, xstar, ystar, fitFiberX, fitFiberY))
+
+    group["fluxFit"] = fluxModel
+
+    # next perform leave one out cross verification, throwing out
+    # one boss exposure and refitting, use previous solution as
+    # initial guess to speed up fitter
+
+    xInit = numpy.array([fitAmp, fitSigma, fitFiberX, fitFiberY])
+
+    bossExps = list(set(group.bossExpNum))
+    dfList = []
+    for bossExp in bossExps:
+        _outgroup = group[group.bossExpNum==bossExp].copy().reset_index()
+        _ingroup = group[group.bossExpNum!=bossExp]
+
+        _fitAmp, _fitSigma, _fitFiberX, _fitFiberY = fitOneSet(
+            xInit, _ingroup.xWokStarPredict, _ingroup.yWokStarPredict, _ingroup.spectroflux, flux_ivar=_ingroup.spectroflux_ivar
+        )
+
+        _outgroup["fluxAmpDitherFit_loo"] = _fitAmp
+        _outgroup["sigmaWokDitherFit_loo"] = _fitSigma
+        _outgroup["xWokDitherFit_loo"] = _fitFiberX
+        _outgroup["yWokDitherFit_loo"] = _fitFiberY
+
+        # calculate modeled flux for each gfa image
+        fluxModel = []
+        for xstar, ystar in _outgroup[["xWokStarPredict", "yWokStarPredict"]].to_numpy():
+            fluxModel.append(fractionalFlux(fitAmp, fitSigma, xstar, ystar, fitFiberX, fitFiberY))
+
+        _outgroup["fluxFit_loo"] = fluxModel
+
+        dfList.append(_outgroup)
+
+    group = pandas.concat(dfList)
+
+    # import pdb; pdb.set_trace()
+    # xStar = group.xWokStarPredict.to_numpy()
+    # yStar = group.yWokStarPredict.to_numpy()
+    # dxStar = group.dxWokStar.to_numpy()
+    # dyStar = group.dyWokStar.to_numpy()
+    # # xFiber = group.xWokMeasBOSS.to_numpy()
+    # # xFiber = group.yWokMeasBOSS.to_numpy()
+    # flux = group.spectroflux.to_numpy()
+    # sigma = numpy.median(numpy.sqrt(group.xstd**2+group.ystd**2)) * 13.5 / 1000 # in mm
+    # fitAmp, fitSigma, fitFiberX, fitFiberY = fitOneSet(xStar, yStar, flux, sigma, fitSigma=True)
+    camera = group.camera.iloc[0]
+    if "b" in camera:
+        magStr = "     g mag = %.2f"%(group.g_mag.iloc[0])
+    else:
+        magStr = "     r mag = %.2f"%(group.r_mag.iloc[0])
+
     _plotOne(
         fitFiberX, fitFiberY, fitSigma, fitAmp,
-        xStar, yStar, flux, group.mjd.iloc[0],
+        group.xWokStarPredict, group.yWokStarPredict, group.spectroflux_corr, group.mjd.iloc[0],
         group.fiberID.iloc[0], group.configID.iloc[0],
-        group.r_mag.iloc[0], group.camera.iloc[0]
+        magStr, group.camera.iloc[0]
     )
     # for col in df.columns:
     #     print(col)
-    group["xWokDitherFit"] = fitFiberX
-    group["yWokDitherFit"] = fitFiberY
-    group["sigmaWokDitherFit"] = fitSigma
-    group["fluxAmpDitherFit"] = fitAmp
+    # group["xWokDitherFit"] = fitFiberX
+    # group["yWokDitherFit"] = fitFiberY
+    # group["sigmaWokDitherFit"] = fitSigma
+    # group["fluxAmpDitherFit"] = fitAmp
     group.to_csv(csvName, index=False)
 
     plotName = csvName.strip(".csv") + ".png"
