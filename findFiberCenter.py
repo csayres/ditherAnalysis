@@ -149,7 +149,7 @@ def fitOneSet(xInit, starx, stary, flux, method="Powell", flux_ivar=1):
     #     fitSigma = sigma
 
     print(minOut)
-    return fitAmp, fitSigma, fitFiberX, fitFiberY
+    return fitAmp, fitSigma, fitFiberX, fitFiberY, minOut.success
 
 
 def plotFlux(positionerId, configID, df):

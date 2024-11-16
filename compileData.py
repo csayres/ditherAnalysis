@@ -16,6 +16,7 @@ import socket
 from multiprocessing import Pool
 import sys
 from functools import partial
+import seaborn as sns
 
 from parseConfSummary import parseConfSummary
 from findFiberCenter import fitOneSet, _plotOne, fractionalFlux
@@ -30,7 +31,7 @@ CENTTYPE = "nudge"
 
 _hostname = socket.gethostname()
 
-if "Conors" in _hostname:
+if "conor" in _hostname.lower():
     LOCATION = "local"
     OUT_DIR = os.getcwd()
     CORES = 10
@@ -773,7 +774,7 @@ def fitOne(name, reprocess=False):
     _maxFlux = group[group.bossExpNum==group.bossExpNum.iloc[0]][["spectroflux_corr", "xWokStarPredict", "yWokStarPredict"]].mean()  # sorted by high to low flux
     xInit = numpy.array([_maxFlux.spectroflux_corr, sigmaInit, _maxFlux.xWokStarPredict, _maxFlux.yWokStarPredict])
 
-    fitAmp, fitSigma, fitFiberX, fitFiberY = fitOneSet(
+    fitAmp, fitSigma, fitFiberX, fitFiberY, fitSuccess = fitOneSet(
         xInit, group.xWokStarPredict, group.yWokStarPredict,
         group.spectroflux_corr, flux_ivar=group.spectroflux_ivar
     )
@@ -782,6 +783,7 @@ def fitOne(name, reprocess=False):
     group["sigmaWokDitherFit"] = fitSigma
     group["xWokDitherFit"] = fitFiberX
     group["yWokDitherFit"] = fitFiberY
+    group["ditherFitSuccess"] = fitSuccess
 
     # calculate flux residuals for each gfa image
     fluxModel = []
@@ -803,7 +805,7 @@ def fitOne(name, reprocess=False):
         _outgroup = group[group.bossExpNum==bossExp].copy().reset_index()
         _ingroup = group[group.bossExpNum!=bossExp]
 
-        _fitAmp, _fitSigma, _fitFiberX, _fitFiberY = fitOneSet(
+        _fitAmp, _fitSigma, _fitFiberX, _fitFiberY, _fitSuccess = fitOneSet(
             xInit, _ingroup.xWokStarPredict, _ingroup.yWokStarPredict, _ingroup.spectroflux, flux_ivar=_ingroup.spectroflux_ivar
         )
 
@@ -811,6 +813,8 @@ def fitOne(name, reprocess=False):
         _outgroup["sigmaWokDitherFit_loo"] = _fitSigma
         _outgroup["xWokDitherFit_loo"] = _fitFiberX
         _outgroup["yWokDitherFit_loo"] = _fitFiberY
+        _outgroup["ditherFitSuccess_loo"] = _fitSuccess
+
 
         # calculate modeled flux for each gfa image
         fluxModel = []
@@ -990,12 +994,109 @@ def plotFluxScatter(df):
     # import pdb; pdb.set_trace()
 
 
+def fitBOSSExp(mjd, site): #df):
+    fs = glob.glob(OUT_DIR + "/%i/ditherFit*_%s.csv"%(mjd,site))
+    dfList = []
+    for f in fs:
+        dfList.append(pandas.read_csv(f))
+    df = pandas.concat(dfList)
+    # divide all spectrofluxes by fit flux amp
+    # overwrite spectroflux norm
+    dfList = []
+    for name, group in df.groupby(["configID", "fiberID"]):
+        amp = group.fluxAmpDitherFit.iloc[0]
+        sigma = group.sigmaWokDitherFit.iloc[0]
+
+        fluxPeakFit = fractionalFlux(amp, sigma, 0, 0, 0, 0)
+        fluxNorm = group.spectroflux_corr.to_numpy() / fluxPeakFit
+        # fluxNorm[fluxNorm > 1] = 1
+        group["spectrofluxNorm"] = fluxNorm
+        dfList.append(group)
+
+    df = pandas.concat(dfList)
+
+    df["dxWok"] = df.xWokStarPredict - df.xWokDitherFit
+    df["dyWok"] = df.yWokStarPredict - df.yWokDitherFit
+    df["drWok"] = numpy.sqrt(df.dxWok**2+df.dyWok**2)
+
+    # import pdb; pdb.set_trace()
+    for configID, group in df.groupby("configID"):
+
+        plt.figure(figsize=(8,8))
+        ax1 = plt.gca()
+        sns.scatterplot(ax=ax1, x=group.dxWok, y=group.dyWok, hue=group.spectrofluxNorm, s=10, hue_norm=(0,1))
+        ax1.set_aspect("equal")
+        ax1.set_xlim([-0.15,0.15])
+        ax1.set_ylim([-0.15,0.15])
+        ax1.set_xlabel("dx wok (mm)")
+        ax1.set_ylabel("dy wok (mm)")
+        plt.savefig("bossExp_configID_%s.png"%(str(configID)))
+
+        plt.figure(figsize=(8,8))
+        ax1 = plt.gca()
+        l1 = numpy.percentile(group.sigmaWokDitherFit, 25)
+        l2 = numpy.percentile(group.sigmaWokDitherFit, 75)
+        sns.scatterplot(ax=ax1, x=group.xWokDitherFit, y=group.yWokDitherFit, hue=group.sigmaWokDitherFit, hue_norm=(l1,l2), s=10)
+        ax1.set_aspect("equal")
+        # ax1.set_xlim([-0.15,0.15])
+        # ax1.set_ylim([-0.15,0.15])
+        ax1.set_xlabel("x wok (mm)")
+        ax1.set_ylabel("y wok (mm)")
+        plt.savefig("bossExp_spatial_configID_%s.png"%(str(configID)))
+
+        plt.figure(figsize=(8,8))
+        ax1 = plt.gca()
+        ax1.plot(group.drWok, group.spectrofluxNorm, '.', ms=5, mec="none", mfc="black", alpha=0.1)
+        pp = sns.color_palette() #"dark") #n_colors=len(set(group.bossExpNum)))
+        # sns.scatterplot(ax=ax1, x=group.drWok, y=group.spectrofluxNorm, hue=group.bossExpNum, palette=pp, s=4)
+        for name, g2 in group.groupby(["fiberID", "camera"]):
+            s = g2.sigmaWokDitherFit.to_numpy()[0]
+            amp = g2.fluxAmpDitherFit.to_numpy()[0]
+            f0 = fractionalFlux(amp,s,0,0,0,0)
+            fluxes = []
+            drs = numpy.linspace(0, 0.15, 100)
+            for _dr in drs:
+                fluxes.append(fractionalFlux(amp,s,0,_dr,0,0)/f0)
+            if "b" in name[1]:
+                color=pp[0]
+                ls = "--"
+            else:
+                color=pp[3]
+                ls = "-"
+            ax1.plot(drs,fluxes, ls=ls, color=color, lw=1, alpha=1)
+        # ax1.set_aspect("equal")
+        ax1.set_ylim([0,1.1])
+        ax1.set_xlim([0,0.15])
+        ax1.set_xlabel("dr wok (mm)")
+        ax1.set_ylabel("spectroflux norm")
+        plt.savefig("bossExp_rad_configID_%s.png"%(str(configID)))
+
+
+
+
+        # plt.figure(figsize=(8,8))
+        # ax1 = plt.gca()
+        # ax1.plot(group.fluxAmpDitherFit, group.sigmaWokDitherFit, '.k', ms=2)
+        # # ax1.set_aspect("equal")
+        # # ax1.set_ylim([0,1.1])
+        # # ax1.set_xlim([0,0.15])
+        # ax1.set_xlabel("flux amplitude")
+        # ax1.set_ylabel("sigma (mm)")
+        # plt.savefig("bossExp_sig_configID_%s.png"%(str(configID)))
+
+
+
+
+        plt.close("all")
+
+
 if __name__ == "__main__":
     mjd = int(sys.argv[1])
     site = sys.argv[2].lower()
     getDitherTables(mjd, site, reprocess=True)
     computeWokCoords(mjd, site)
     fitFiberCenters(mjd, site, reprocess=True)
+    # fitBOSSExp(mjd, site)
 
     # plotDitherPSFs()
     # plot_zps()

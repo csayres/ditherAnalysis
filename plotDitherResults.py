@@ -156,7 +156,9 @@ def plotAll(mjd=None, betaArmUpdate=None):
         # import pdb; pdb.set_trace()
 
     dfList = []
+
     for name, group in df.groupby(["fiberID"]):
+        group.drop('level_0', axis=1, inplace=True)
         group = group.reset_index()
         group["dxBetaArmFit"] = group.dxBetaArm - numpy.mean(group.dxBetaArm)
         group["dyBetaArmFit"] = group.dyBetaArm - numpy.mean(group.dyBetaArm)
@@ -754,10 +756,10 @@ if __name__ == "__main__":
     # plotAll(mjd=[60521,60528, 60573, 60575, 60576]) # mount loosened
     # plotFVCdistortion(mjd=[60521,60528, 60573, 60575, 60576], fiducialOut="fiducial_coords_lco_60576.csv") # writes new file for fiducial positions
 
-    merge_all(mjds=[60529, 60537, 60572, 60558])
-    plotAll(mjd=[60529, 60537, 60572, 60558], betaArmUpdate="apo_positionerTable_barm_fixed.csv") # apo post shutdown
-    plotGFADistortion(mjd=[60529, 60537, 60572, 60558])
-    plotFVCdistortion(mjd=[60529, 60537, 60572, 60558], fiducialOut="junk_coords.csv")
+    merge_all(mjds=[60629]) #, 60537, 60572, 60558])
+    plotAll(mjd=[60629]) #, 60537, 60572, 60558], betaArmUpdate="apo_positionerTable_barm_fixed.csv") # apo post shutdown
+    plotGFADistortion(mjd=[60629]) #, 60537, 60572, 60558])
+    plotFVCdistortion(mjd=[60629]) #, 60537, 60572, 60558], fiducialOut="junk_coords.csv")
     # plotFWHMs()
 
     # merge_all(mjds=[60558]) # apo post nudge
