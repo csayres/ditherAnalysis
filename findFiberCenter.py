@@ -81,7 +81,7 @@ def minimizeMe2(x, amp, sigma, starx, stary, flux, flux_ivar=1):
 def weightedCenter(starx, stary, flux):
     asort = numpy.argsort(flux)
     flux = flux[asort][-4:]
-    fluxNorm = flux/numpy.sum(flux)
+    fluxNorm = flux / numpy.sum(flux)
     starx = starx[asort][-4:]
     stary = stary[asort][-4:]
 

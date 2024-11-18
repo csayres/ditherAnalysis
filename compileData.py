@@ -3,6 +3,7 @@ import glob
 from astropy.table import Table
 from astropy.time import Time, TimeDelta
 from astropy.wcs import WCS
+from astropy.stats import sigma_clip
 import matplotlib.pyplot as plt
 import pandas
 import seaborn as sns
@@ -778,19 +779,17 @@ def fitOne(name, reprocess=False):
         xInit, group.xWokStarPredict, group.yWokStarPredict,
         group.spectroflux_corr, flux_ivar=group.spectroflux_ivar
     )
+    # calculate flux model at each gfa image
+    fluxModel = []
+    for xstar, ystar in group[["xWokStarPredict", "yWokStarPredict"]].to_numpy():
+        fluxModel.append(fractionalFlux(fitAmp, fitSigma, xstar, ystar, fitFiberX, fitFiberY))
 
     group["fluxAmpDitherFit"] = fitAmp
     group["sigmaWokDitherFit"] = fitSigma
     group["xWokDitherFit"] = fitFiberX
     group["yWokDitherFit"] = fitFiberY
     group["ditherFitSuccess"] = fitSuccess
-
-    # calculate flux residuals for each gfa image
-    fluxModel = []
-    for xstar, ystar in group[["xWokStarPredict", "yWokStarPredict"]].to_numpy():
-        fluxModel.append(fractionalFlux(fitAmp, fitSigma, xstar, ystar, fitFiberX, fitFiberY))
-
-    group["fluxFit"] = fluxModel
+    group["fluxModelDitherFit"] = fluxModel
 
     group.drop('level_0', axis=1, inplace=True)
     # next perform leave one out cross verification, throwing out
@@ -808,20 +807,18 @@ def fitOne(name, reprocess=False):
         _fitAmp, _fitSigma, _fitFiberX, _fitFiberY, _fitSuccess = fitOneSet(
             xInit, _ingroup.xWokStarPredict, _ingroup.yWokStarPredict, _ingroup.spectroflux, flux_ivar=_ingroup.spectroflux_ivar
         )
+        # calculate flux model at each gfa image
+        fluxModel = []
+        for xstar, ystar in _outgroup[["xWokStarPredict", "yWokStarPredict"]].to_numpy():
+            fluxModel.append(fractionalFlux(_fitAmp, _fitSigma, xstar, ystar, _fitFiberX, _fitFiberY))
 
         _outgroup["fluxAmpDitherFit_loo"] = _fitAmp
         _outgroup["sigmaWokDitherFit_loo"] = _fitSigma
         _outgroup["xWokDitherFit_loo"] = _fitFiberX
         _outgroup["yWokDitherFit_loo"] = _fitFiberY
         _outgroup["ditherFitSuccess_loo"] = _fitSuccess
+        _outgroup["fluxModelDitherFit_loo"] = fluxModel
 
-
-        # calculate modeled flux for each gfa image
-        fluxModel = []
-        for xstar, ystar in _outgroup[["xWokStarPredict", "yWokStarPredict"]].to_numpy():
-            fluxModel.append(fractionalFlux(fitAmp, fitSigma, xstar, ystar, fitFiberX, fitFiberY))
-
-        _outgroup["fluxFit_loo"] = fluxModel
 
         dfList.append(_outgroup)
 
@@ -1000,10 +997,14 @@ def fitBOSSExp(mjd, site): #df):
     for f in fs:
         dfList.append(pandas.read_csv(f))
     df = pandas.concat(dfList)
+
+    # import pdb; pdb.set_trace()
+
+
     # divide all spectrofluxes by fit flux amp
     # overwrite spectroflux norm
     dfList = []
-    for name, group in df.groupby(["configID", "fiberID"]):
+    for name, group in df.groupby(["configID", "fiberID", "camera"]):
         amp = group.fluxAmpDitherFit.iloc[0]
         sigma = group.sigmaWokDitherFit.iloc[0]
 
@@ -1020,7 +1021,7 @@ def fitBOSSExp(mjd, site): #df):
     df["drWok"] = numpy.sqrt(df.dxWok**2+df.dyWok**2)
 
     # import pdb; pdb.set_trace()
-    for configID, group in df.groupby("configID"):
+    for name, group in df.groupby(["configID", "camera"]):
 
         plt.figure(figsize=(8,8))
         ax1 = plt.gca()
@@ -1030,59 +1031,78 @@ def fitBOSSExp(mjd, site): #df):
         ax1.set_ylim([-0.15,0.15])
         ax1.set_xlabel("dx wok (mm)")
         ax1.set_ylabel("dy wok (mm)")
-        plt.savefig("bossExp_configID_%s.png"%(str(configID)))
+        plt.savefig("bossExp_configID_%s_camera_%s.png"%(str(name[0]), str(name[1])))
 
         plt.figure(figsize=(8,8))
         ax1 = plt.gca()
         l1 = numpy.percentile(group.sigmaWokDitherFit, 25)
         l2 = numpy.percentile(group.sigmaWokDitherFit, 75)
-        sns.scatterplot(ax=ax1, x=group.xWokDitherFit, y=group.yWokDitherFit, hue=group.sigmaWokDitherFit, hue_norm=(l1,l2), s=10)
+        sns.scatterplot(ax=ax1, x=group.xWokDitherFit, y=group.yWokDitherFit, hue=group.sigmaWokDitherFit, s=10)
         ax1.set_aspect("equal")
         # ax1.set_xlim([-0.15,0.15])
         # ax1.set_ylim([-0.15,0.15])
         ax1.set_xlabel("x wok (mm)")
         ax1.set_ylabel("y wok (mm)")
-        plt.savefig("bossExp_spatial_configID_%s.png"%(str(configID)))
+        plt.savefig("bossExp_spatial_configID_%s_camera_%s.png"%(str(name[0]), str(name[1])))
 
         plt.figure(figsize=(8,8))
         ax1 = plt.gca()
-        ax1.plot(group.drWok, group.spectrofluxNorm, '.', ms=5, mec="none", mfc="black", alpha=0.1)
-        pp = sns.color_palette() #"dark") #n_colors=len(set(group.bossExpNum)))
+        ax1.plot(group.drWok, group.spectrofluxNorm, '.', ms=10, mec="none", mfc="black", alpha=0.1)
+        pp = sns.color_palette("muted") #n_colors=len(set(group.bossExpNum)))
         # sns.scatterplot(ax=ax1, x=group.drWok, y=group.spectrofluxNorm, hue=group.bossExpNum, palette=pp, s=4)
-        for name, g2 in group.groupby(["fiberID", "camera"]):
-            s = g2.sigmaWokDitherFit.to_numpy()[0]
-            amp = g2.fluxAmpDitherFit.to_numpy()[0]
+        group = group.sort_values("sigmaWokDitherFit")
+        _grp = group[["fiberID", "sigmaWokDitherFit"]].groupby("fiberID").mean().reset_index()
+        _grp = _grp.sort_values("sigmaWokDitherFit")
+        _sigClip = sigma_clip(_grp.sigmaWokDitherFit.to_numpy(), sigma=5)
+        goodIDs = _grp.fiberID.to_numpy()[~_sigClip.mask]
+        badIDs = _grp.fiberID.to_numpy()[_sigClip.mask]
+
+
+        for goodID in goodIDs:
+            row = group[group.fiberID==goodID].iloc[0]
+            s = float(row.sigmaWokDitherFit)
+            amp = float(row.fluxAmpDitherFit)
             f0 = fractionalFlux(amp,s,0,0,0,0)
             fluxes = []
             drs = numpy.linspace(0, 0.15, 100)
             for _dr in drs:
                 fluxes.append(fractionalFlux(amp,s,0,_dr,0,0)/f0)
-            if "b" in name[1]:
-                color=pp[0]
-                ls = "--"
-            else:
-                color=pp[3]
-                ls = "-"
-            ax1.plot(drs,fluxes, ls=ls, color=color, lw=1, alpha=1)
-        # ax1.set_aspect("equal")
+            ax1.plot(drs,fluxes, ls="-", color=pp[-1], lw=0.1, alpha=1)
+
+        for badID in badIDs:
+            row = group[group.fiberID==badID].iloc[0]
+            s = float(row.sigmaWokDitherFit)
+            amp = float(row.fluxAmpDitherFit)
+            f0 = fractionalFlux(amp,s,0,0,0,0)
+            fluxes = []
+            drs = numpy.linspace(0, 0.15, 100)
+            for _dr in drs:
+                fluxes.append(fractionalFlux(amp,s,0,_dr,0,0)/f0)
+            ax1.plot(drs,fluxes, ls="-", color=pp[3], lw=1.5, alpha=1)
+
         ax1.set_ylim([0,1.1])
         ax1.set_xlim([0,0.15])
         ax1.set_xlabel("dr wok (mm)")
         ax1.set_ylabel("spectroflux norm")
-        plt.savefig("bossExp_rad_configID_%s.png"%(str(configID)))
+        plt.savefig("bossExp_rad_configID_%s_camera_%s.png"%(str(name[0]), str(name[1])), dpi=300)
 
+        # calculate mean square error of model
+        dfList = []
+        for n, g in group.groupby("fiberID"):
+            err = []
+            for n2, g2 in g.groupby("gfaImgNum"):
+                import pdb; pdb.set_trace()
+                ff = fractionalFlux(g2.fluxAmpDitherFit,g2.sigma,0,_dr,0,0)
 
-
-
-        # plt.figure(figsize=(8,8))
-        # ax1 = plt.gca()
-        # ax1.plot(group.fluxAmpDitherFit, group.sigmaWokDitherFit, '.k', ms=2)
-        # # ax1.set_aspect("equal")
-        # # ax1.set_ylim([0,1.1])
-        # # ax1.set_xlim([0,0.15])
-        # ax1.set_xlabel("flux amplitude")
-        # ax1.set_ylabel("sigma (mm)")
-        # plt.savefig("bossExp_sig_configID_%s.png"%(str(configID)))
+        plt.figure(figsize=(8,8))
+        ax1 = plt.gca()
+        ax1.plot(group.fluxAmpDitherFit, group.sigmaWokDitherFit, '.k', ms=2)
+        # ax1.set_aspect("equal")
+        # ax1.set_ylim([0,1.1])
+        # ax1.set_xlim([0,0.15])
+        ax1.set_xlabel("flux amplitude")
+        ax1.set_ylabel("sigma (mm)")
+        plt.savefig("bossExp_sig_configID_%s_camera_%a.png"%(str(name[0]), str(name[1])))
 
 
 
