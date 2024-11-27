@@ -98,7 +98,11 @@ def getFVCPath(mjd, site, imgNum, location=LOCATION):
     else:
         camname = "fvc1s"
     if location == "local":
-        fvcPath = "/Volumes/futa/%s/data/fcam/%i/proc-fimg-%s-%s.fits"%(site, mjd, camname, imgNumStr)
+        # fvcPath = "/Volumes/futa/%s/data/fcam/%i/proc-fimg-%s-%s.fits"%(site, mjd, camname, imgNumStr)
+        subdir = ""
+        if site == "lco":
+            subdir = "/lco/"
+        fvcPath = "/Users/csayres/Downloads/fcam%s/%i/proc-fimg-%s-%s.fits"%(subdir, mjd, camname, imgNumStr)
     elif location == "mountain":
         fvcPath = "/data/fcam/%i/proc-fimg-%s-%s.fits"%(mjd, camname, imgNumStr)
     elif location == "mako":
@@ -500,9 +504,9 @@ def getFVCData(mjd, site, expNum, reprocess=False):
     return ptm
 
 
-def getDitherTables(mjd, site, reprocess=False):
+def getDitherTables(mjd, site, reprocGFA=False, reprocFVC=False):
     site = site.lower()
-    dfGFA = getGFATables(mjd, site, reprocess)
+    dfGFA = getGFATables(mjd, site, reprocGFA)
 
     configIDs = list(set(dfGFA.configID))
     dfList = []
@@ -613,7 +617,7 @@ def getDitherTables(mjd, site, reprocess=False):
 
     # get the fvc data
     fvcImgNums = list(set(dfConfSumm.fvcImgNum))
-    dfList = [getFVCData(mjd, site, x, reprocess) for x in fvcImgNums]
+    dfList = [getFVCData(mjd, site, x, reprocFVC) for x in fvcImgNums]
 
     dfFVC = pandas.concat(dfList)
 
@@ -1088,11 +1092,38 @@ def fitBOSSExp(mjd, site): #df):
 
         # calculate mean square error of model
         dfList = []
-        for n, g in group.groupby("fiberID"):
-            err = []
-            for n2, g2 in g.groupby("gfaImgNum"):
-                import pdb; pdb.set_trace()
-                ff = fractionalFlux(g2.fluxAmpDitherFit,g2.sigma,0,_dr,0,0)
+        # maxErrX = []
+        # stdErrX = []
+        # maxErrY = []
+        # stdErrY = []
+        dx = []
+        dy = []
+
+        group["dx_loo"] = group.xWokDitherFit - group.xWokDitherFit_loo
+        group["dy_loo"] = group.yWokDitherFit - group.yWokDitherFit_loo
+        group["dr_loo"] = numpy.sqrt(group.dx_loo**2+group.dy_loo**2)
+
+        errs = group[["fiberID", "dx_loo", "dy_loo", "dr_loo", "fluxAmpDitherFit"]]
+        # errs = errs[errs.fiberID.isin(goodIDs)]
+        errs = errs.sort_values("fiberID")
+        errs_m = errs.groupby(["fiberID", "fluxAmpDitherFit"]).std().reset_index()
+        # errs_max = errs.groupby("fiberID").max().reset_index()
+
+        plt.figure()
+        plt.hist(errs_m.dr_loo, bins=100, label="dr")
+        plt.hist(errs_m.dx_loo, bins=100, label="dx")
+        plt.hist(errs_m.dy_loo, bins=100, label="dy")
+        plt.legend()
+        plt.savefig("bossExp_hist_configID_%s_camera_%s.png"%(str(name[0]), str(name[1])), dpi=300)
+
+        plt.figure()
+        plt.plot(errs_m.dr_loo, errs_m.fluxAmpDitherFit, '.k')
+        plt.savefig("bossExp_errs_configID_%s_camera_%s.png"%(str(name[0]), str(name[1])), dpi=300)
+
+
+        # for n, g in group.groupby("fiberID"):
+        #     dx = g.xWokDitherFit - g.xWokDitherFit_loo
+        #     dy = g.yWokDitherFit - g.yWokDitherFit_loo
 
         plt.figure(figsize=(8,8))
         ax1 = plt.gca()
@@ -1113,9 +1144,10 @@ def fitBOSSExp(mjd, site): #df):
 if __name__ == "__main__":
     mjd = int(sys.argv[1])
     site = sys.argv[2].lower()
-    getDitherTables(mjd, site, reprocess=True)
+    getDitherTables(mjd, site, reprocGFA=False, reprocFVC=True)
     computeWokCoords(mjd, site)
-    fitFiberCenters(mjd, site, reprocess=True)
+    fitFiberCenters(mjd, site, reprocess=False)
+
     # fitBOSSExp(mjd, site)
 
     # plotDitherPSFs()

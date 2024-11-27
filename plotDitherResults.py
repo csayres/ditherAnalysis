@@ -10,16 +10,16 @@ from coordio.transforms import FVCTransformAPO
 from astropy.io import fits
 from astropy.table import Table
 
-cp = sns.color_palette("husl", 14)
+# cp = sns.color_palette("husl", 20)
 POLIDS=numpy.array([0, 1, 2, 3, 4, 5, 6, 9, 20, 27, 28, 29, 30])
 RMAX = 310
 
 
 def merge_all(mjds):
     dfList = []
-    dirs = glob.glob("60*")
+    # dirs = glob.glob("60*preweight")
     for mjd in mjds:
-        fs = glob.glob("%i/ditherFit*.csv"%mjd)
+        fs = glob.glob("%i.preweight/ditherFit*.csv"%mjd)
         for f in fs:
             print("processing ", f)
             dfList.append(pandas.read_csv(f))
@@ -36,29 +36,29 @@ def merge_all(mjds):
     df.to_csv("ditherFit_all_merged.csv", index=False)
 
 
-def fitZBs(x,y,dx,dy):
+# def fitZBs(x,y,dx,dy):
 
-    polids, coeffs = fitZhaoBurge(
-        x,
-        y,
-        x+dx,
-        y+dy,
-        polids=POLIDS,
-        normFactor=RMAX
-    )
+#     polids, coeffs = fitZhaoBurge(
+#         x,
+#         y,
+#         x+dx,
+#         y+dy,
+#         polids=POLIDS,
+#         normFactor=RMAX
+#     )
 
-    _dx, _dy = getZhaoBurgeXY(
-        polids,
-        coeffs,
-        x,
-        y,
-        normFactor=RMAX
-    )
+#     _dx, _dy = getZhaoBurgeXY(
+#         polids,
+#         coeffs,
+#         x,
+#         y,
+#         normFactor=RMAX
+#     )
 
-    zdx = _dx - dx
-    zdy = _dy - dy
-    zdr = numpy.sqrt(zdx**2+zdy**2)
-    return zdx, zdy
+#     zdx = _dx - dx
+#     zdy = _dy - dy
+#     zdr = numpy.sqrt(zdx**2+zdy**2)
+#     return zdx, zdy
 
 
 def plotOne(df, xCol,yCol,dxCol,dyCol,xlabel,ylabel):
@@ -76,6 +76,8 @@ def plotOne(df, xCol,yCol,dxCol,dyCol,xlabel,ylabel):
     rms = numpy.sqrt(numpy.mean(dr**2))
     p90 = numpy.percentile(dr, 90)
     median = numpy.median(dr)
+
+    cp = sns.color_palette("husl", len(set(df.configID)))
 
     for name, group in df.groupby("configID"):
         color = cp[ii]
@@ -197,6 +199,11 @@ def plotFVCdistortion(mjd=None, fiducialOut=None):
     df["yWokMetDithFit"] = df.yWokDitherFit + (df.yWokMeasMetrology - df.yWokMeasBOSS)
     df["rWokMetDithFit"] = numpy.sqrt(df.xWokMetDithFit**2+df.yWokMetDithFit**2)
 
+    # compute variances for xyDither fits
+    _df = df[["fiberID", "configID", "camera", "xWokDitherFit_loo", "yWokDitherFit_loo"]]
+    _df = _df.groupby(["fiberID", "configID", "camera"]).var().reset_index()
+    df = df.merge(_df, on=["fiberID", "configID", "camera"], suffixes=(None, "_var"))
+
     dfList = []
     dfFIFList = []
     dfXYTest = pandas.DataFrame()
@@ -206,8 +213,14 @@ def plotFVCdistortion(mjd=None, fiducialOut=None):
     xs = numpy.sqrt(rTest)*numpy.cos(thetaTest)
     ys = numpy.sqrt(rTest)*numpy.sin(thetaTest)
     for name, group in df.groupby(["configID"]):
+        if sum(numpy.isnan(group.xWokDitherFit_loo.to_numpy())) > 0:
+            print("skipping due to nans", group["mjd"].iloc[0], name)
+            continue
         xyFVC = group[["x_fvc", "y_fvc"]].to_numpy()
         xyWok = group[["xWokMetDithFit", "yWokMetDithFit"]].to_numpy()
+        x_var = group.xWokDitherFit_loo_var.to_numpy()
+        y_var = group.yWokDitherFit_loo_var.to_numpy()
+
 
         st = SimilarityTransform()
         st.estimate(xyFVC, xyWok)
@@ -224,6 +237,9 @@ def plotFVCdistortion(mjd=None, fiducialOut=None):
         group["stscale"] = st.scale
 
         # also fit a zb poly
+        print("\n\n")
+        print("fitting ZB", name, "mjd ", group.mjd.iloc[0])
+        print("\n\n")
         polids, coeffs = fitZhaoBurge(
             xyFit[:,0],
             xyFit[:,1],
@@ -231,7 +247,9 @@ def plotFVCdistortion(mjd=None, fiducialOut=None):
             xyWok[:,1],
             # polids=numpy.arange(33),
             polids=POLIDS,
-            normFactor=RMAX
+            normFactor=RMAX,
+            x_var = x_var,
+            y_var = y_var
         )
 
         dx, dy = getZhaoBurgeXY(
@@ -396,6 +414,10 @@ def plotFVCdistortion(mjd=None, fiducialOut=None):
     dfFIF["dxWokRes"] = dfFIF.dxWok - dfFIF.dxWok_m
     dfFIF["dyWokRes"] = dfFIF.dyWok - dfFIF.dyWok_m
     dfFIF["drWokRes"] = numpy.sqrt(dfFIF.dxWokRes**2+dfFIF.dyWokRes**2)
+    # use same variance for x and y
+    dfVAR = dfFIF[["holeID", "drWokRes"]].groupby("holeID").var().reset_index()
+    dfVAR["xyVar"] = dfVAR.drWokRes
+    dfm = dfm.merge(dfVAR, on="holeID", suffixes=(None, "_var"))
 
     plt.figure(figsize=(8,8))
     plt.quiver(
@@ -410,23 +432,29 @@ def plotFVCdistortion(mjd=None, fiducialOut=None):
     plt.savefig("zb_fif_shift.png", dpi=200)
 
     # write updated fiducial coords
-    keepCols = ['site', 'holeID', 'id', 'xWok', 'yWok', 'zWok', 'col', 'row']
+    keepCols = ['site', 'holeID', 'id', 'xWok', 'yWok', 'zWok', 'col', 'row', 'xyVar']
     fcm = calibration.fiducialCoords.reset_index()
+    # fcm["xyVar"] = numpy.max(dfFIF.xyVar) # initialize variances to max measured variance (for missing fiducial measurements)
+    # import pdb; pdb.set_trace()
     print(len(fcm), len(dfm))
     # fiducial F7 doesn't exist in measurements (faint)
     fcm = fcm.merge(dfm, how="left", on="holeID", suffixes=(None, "_m"))
     # not all fiducials have measurements some are broken (NaN values in xWokMeas)
     xWokSaved = fcm.xWok.to_numpy()
     yWokSaved = fcm.yWok.to_numpy()
+    xyVarSaved = numpy.nanmax(fcm.xyVar)
     xWokNew = fcm.xWokMeas.to_numpy()
     yWokNew = fcm.yWokMeas.to_numpy()
+    xyVarNew = fcm.xyVar.to_numpy()
     brokenInds = numpy.argwhere(numpy.isnan(xWokNew)).flatten()
     for idx in brokenInds:
         xWokNew[idx] = xWokSaved[idx]
         yWokNew[idx] = yWokSaved[idx]
+        xyVarNew[idx] = xyVarSaved
 
     fcm["xWok"] = xWokNew
     fcm["yWok"] = yWokNew
+    fcm["xyVar"] = xyVarNew
 
     if fiducialOut:
         fcm = fcm[keepCols]
@@ -668,7 +696,6 @@ def plotScale():
     plt.plot(df.taiMid, df.SOL_SCL, '.r')
     plt.show()
 
-
     import pdb; pdb.set_trace()
 
     # plt.show()
@@ -756,10 +783,10 @@ if __name__ == "__main__":
     # plotAll(mjd=[60521,60528, 60573, 60575, 60576]) # mount loosened
     # plotFVCdistortion(mjd=[60521,60528, 60573, 60575, 60576], fiducialOut="fiducial_coords_lco_60576.csv") # writes new file for fiducial positions
 
-    merge_all(mjds=[60629]) #, 60537, 60572, 60558])
-    plotAll(mjd=[60629]) #, 60537, 60572, 60558], betaArmUpdate="apo_positionerTable_barm_fixed.csv") # apo post shutdown
-    plotGFADistortion(mjd=[60629]) #, 60537, 60572, 60558])
-    plotFVCdistortion(mjd=[60629]) #, 60537, 60572, 60558], fiducialOut="junk_coords.csv")
+    merge_all(mjds=[60629, 60537, 60572, 60558, 60529]) #, 60606])
+    plotAll(mjd=[60629, 60537, 60572, 60558, 60529]) #, 60606]) #, 60537, 60572, 60558], betaArmUpdate="apo_positionerTable_barm_fixed.csv") # apo post shutdown
+    # plotGFADistortion(mjd=[60629, 60537, 60572, 60558, 60529, 60606]) #, 60537, 60572, 60558])
+    # plotFVCdistortion(mjd=[60629, 60537, 60572, 60558, 60529]) #, fiducialOut="fiducialCoords_apo_weighted.csv") #, 60606], fiducialOut="fiducialCoords_apo_weighted.csv") #, 60537, 60572, 60558], fiducialOut="junk_coords.csv")
     # plotFWHMs()
 
     # merge_all(mjds=[60558]) # apo post nudge
@@ -784,6 +811,7 @@ if __name__ == "__main__":
     # plotAll(mjd=[60606])
     # plotGFADistortion(mjd=[60606])
     # plotFVCdistortion(mjd=[60606], fiducialOut="junk_coords_apo.csv")
+
 
 
 
