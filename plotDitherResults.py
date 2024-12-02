@@ -15,11 +15,11 @@ POLIDS=numpy.array([0, 1, 2, 3, 4, 5, 6, 9, 20, 27, 28, 29, 30])
 RMAX = 310
 
 
-def merge_all(mjds):
+def merge_all(mjds, suffix=""):
     dfList = []
     # dirs = glob.glob("60*preweight")
     for mjd in mjds:
-        fs = glob.glob("%i.preweight/ditherFit*.csv"%mjd)
+        fs = glob.glob("%i%s/ditherFit*.csv"%(mjd, suffix))
         for f in fs:
             print("processing ", f)
             dfList.append(pandas.read_csv(f))
@@ -31,6 +31,17 @@ def merge_all(mjds):
         nBossExp = len(set(group.bossExpNum))
         if nBossExp >= 5:
             dfList.append(group)
+
+    df = pandas.concat(dfList)
+
+    # remove individual fits without loo success
+    dfList = []
+    for name, group in df.groupby(["configID", "fiberID", "camera"]):
+        if False in group.ditherFitSuccess_loo:
+            continue
+        if False in group.ditherFitSuccess:
+            continue
+        dfList.append(group)
 
     df = pandas.concat(dfList)
     df.to_csv("ditherFit_all_merged.csv", index=False)
@@ -784,10 +795,11 @@ if __name__ == "__main__":
     # plotFVCdistortion(mjd=[60521,60528, 60573, 60575, 60576], fiducialOut="fiducial_coords_lco_60576.csv") # writes new file for fiducial positions
 
     merge_all(mjds=[60629, 60537, 60572, 60558, 60529]) #, 60606])
-    plotAll(mjd=[60629, 60537, 60572, 60558, 60529]) #, 60606]) #, 60537, 60572, 60558], betaArmUpdate="apo_positionerTable_barm_fixed.csv") # apo post shutdown
-    # plotGFADistortion(mjd=[60629, 60537, 60572, 60558, 60529, 60606]) #, 60537, 60572, 60558])
-    # plotFVCdistortion(mjd=[60629, 60537, 60572, 60558, 60529]) #, fiducialOut="fiducialCoords_apo_weighted.csv") #, 60606], fiducialOut="fiducialCoords_apo_weighted.csv") #, 60537, 60572, 60558], fiducialOut="junk_coords.csv")
+    plotAll(mjd=[60629, 60537, 60572, 60558, 60529], betaArmUpdate="positionerTable_apo_weighted2.csv") #, 60606]) #, 60537, 60572, 60558], betaArmUpdate="apo_positionerTable_barm_fixed.csv") # apo post shutdown
+    # plotGFADistortion(mjd=[60629, 60537, 60572, 60558, 60529], filename="gfaCoords_apo_weighted2.csv") #, 60537, 60572, 60558])
+    plotFVCdistortion(mjd=[60629, 60537, 60572, 60558, 60529], fiducialOut="fiducialCoords_apo_weighted2.csv") #, 60606], fiducialOut="fiducialCoords_apo_weighted.csv") #, 60537, 60572, 60558], fiducialOut="junk_coords.csv")
     # plotFWHMs()
+
 
     # merge_all(mjds=[60558]) # apo post nudge
     # merge_all(mjds=[60572]) # apo bright time eng
