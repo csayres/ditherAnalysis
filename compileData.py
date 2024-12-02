@@ -175,6 +175,7 @@ def procOneGFA(imgNum, mjd, site):
         print("skipping gimg (solve failed)", site, mjd, imgNum)
         print(e)
         return None
+    dfList = []
     for img in imgs:
         ff = fits.open(img)
         toks = img.split("-")
@@ -220,8 +221,9 @@ def procOneGFA(imgNum, mjd, site):
 
         # t["FWHM_FIT"] = ff[1].header["FWHM_FIT"]
         ff.close()
-        return t
-            # dfList.append(t)
+        dfList.append(t)
+
+    return pandas.concat(dfList)
 
 
 def getGFATables(mjd, site, reprocess=False):
@@ -1144,7 +1146,7 @@ def fitBOSSExp(mjd, site): #df):
 if __name__ == "__main__":
     mjd = int(sys.argv[1])
     site = sys.argv[2].lower()
-    getDitherTables(mjd, site, reprocGFA=False, reprocFVC=True)
+    getDitherTables(mjd, site, reprocGFA=True, reprocFVC=True)
     computeWokCoords(mjd, site)
     fitFiberCenters(mjd, site, reprocess=False)
 
