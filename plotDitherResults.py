@@ -578,7 +578,7 @@ def plotReprocessFVC():
 
     plt.show()
 
-def plotGFADistortion(mjd=None, preNudge=False):
+def plotGFADistortion(mjd=None, preNudge=False, filename=None):
     dfList = []
     if mjd is not None:
         for _m in mjd:
@@ -658,7 +658,8 @@ def plotGFADistortion(mjd=None, preNudge=False):
     gfaCoords["xWok"] = gfaCoords.xWok - numpy.array(xGFAoff)
     gfaCoords["yWok"] = gfaCoords.yWok - numpy.array(yGFAoff)
 
-    gfaCoords.to_csv("gfaCoords_lco_july_2024.csv")
+    if filename is not None:
+        gfaCoords.to_csv(filename)
 
     plt.figure()
     plt.hist(df.drWok, bins=100)
@@ -794,10 +795,10 @@ if __name__ == "__main__":
     # plotAll(mjd=[60521,60528, 60573, 60575, 60576]) # mount loosened
     # plotFVCdistortion(mjd=[60521,60528, 60573, 60575, 60576], fiducialOut="fiducial_coords_lco_60576.csv") # writes new file for fiducial positions
 
-    merge_all(mjds=[60629, 60537, 60572, 60558, 60529]) #, 60606])
-    plotAll(mjd=[60629, 60537, 60572, 60558, 60529], betaArmUpdate="positionerTable_apo_weighted2.csv") #, 60606]) #, 60537, 60572, 60558], betaArmUpdate="apo_positionerTable_barm_fixed.csv") # apo post shutdown
-    # plotGFADistortion(mjd=[60629, 60537, 60572, 60558, 60529], filename="gfaCoords_apo_weighted2.csv") #, 60537, 60572, 60558])
-    plotFVCdistortion(mjd=[60629, 60537, 60572, 60558, 60529], fiducialOut="fiducialCoords_apo_weighted2.csv") #, 60606], fiducialOut="fiducialCoords_apo_weighted.csv") #, 60537, 60572, 60558], fiducialOut="junk_coords.csv")
+    merge_all(mjds=[60629, 60537, 60572, 60558, 60529]) #, suffix=".prePsfNudge") #, 60606])
+    plotAll(mjd=[60629, 60537, 60572, 60558, 60529])#, betaArmUpdate="positionerTable_apo_weighted2.csv") #, 60606]) #, 60537, 60572, 60558], betaArmUpdate="apo_positionerTable_barm_fixed.csv") # apo post shutdown
+    plotGFADistortion(mjd=[60629, 60537, 60572, 60558, 60529])#, filename="gfaCoords_apo_weighted2.csv") #, 60537, 60572, 60558])
+    plotFVCdistortion(mjd=[60629, 60537, 60572, 60558, 60529])#, fiducialOut="fiducialCoords_apo_weighted2.csv") #, 60606], fiducialOut="fiducialCoords_apo_weighted.csv") #, 60537, 60572, 60558], fiducialOut="junk_coords.csv")
     # plotFWHMs()
 
 
