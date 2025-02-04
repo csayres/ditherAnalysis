@@ -15,11 +15,11 @@ POLIDS=numpy.array([0, 1, 2, 3, 4, 5, 6, 9, 20, 27, 28, 29, 30])
 RMAX = 310
 
 
-def merge_all(mjds, suffix=""):
+def merge_all(mjds, suffix="", site=""):
     dfList = []
     # dirs = glob.glob("60*preweight")
     for mjd in mjds:
-        fs = glob.glob("%i%s/ditherFit*.csv"%(mjd, suffix))
+        fs = glob.glob("%i%s/ditherFit*%s.csv"%(mjd, suffix, site))
         for f in fs:
             print("processing ", f)
             dfList.append(pandas.read_csv(f))
@@ -44,6 +44,8 @@ def merge_all(mjds, suffix=""):
         dfList.append(group)
 
     df = pandas.concat(dfList)
+    # ignore configID 18717 (an apo field that seemed bad?)
+    # df = df[df.configID != 18717]
     df.to_csv("ditherFit_all_merged.csv", index=False)
 
 
@@ -183,11 +185,12 @@ def plotAll(mjd=None, betaArmUpdate=None):
 
 
 
-def plotFVCdistortion(mjd=None, fiducialOut=None):
+def plotFVCdistortion(mjd=None, fiducialOut=None, includeVar=True):
     df = pandas.read_csv("ditherFit_all_merged.csv")
     if mjd is not None:
         df = df[df.mjd.isin(mjd)]
     nConfigs = len(set(df.configID))
+    print("nConfigs!!", nConfigs)
 
     xSky = df.xWokDitherFit.to_numpy()
     ySky = df.yWokDitherFit.to_numpy()
@@ -350,7 +353,7 @@ def plotFVCdistortion(mjd=None, fiducialOut=None):
             group.x, group.y, group.dxm, group.dym, angles="xy", units="xy", width=1, scale=0.003
         )
         rms = numpy.sqrt(numpy.mean(group.drm**2))*1000
-        plt.title("rms = %.1f um"%rms)
+        plt.title("configID=%i rms = %.1f um"%(name, rms))
         plt.xlabel("x wok (mm)")
         plt.ylabel("y wok (mm)")
         plt.axis("equal")
@@ -469,55 +472,57 @@ def plotFVCdistortion(mjd=None, fiducialOut=None):
 
     if fiducialOut:
         fcm = fcm[keepCols]
+        if not includeVar:
+            fcm = fcm.drop("xyVar", axis=1)
         fcm.to_csv(fiducialOut)
     plt.show()
     # import pdb; pdb.set_trace()
 
 
-def reprocessFVC(centType="sep"):
-    dfAll = pandas.read_csv("ditherFit_all_merged.csv")
-    fcm = pandas.read_csv("fiducialCoords_dither_updated.csv")
-    fvcImg = dfAll[["fvcImgNum", "mjd"]].groupby(["fvcImgNum", "mjd"]).first().reset_index().sort_values(["mjd","fvcImgNum"])
-    fvcImgNums = fvcImg.fvcImgNum.to_numpy()
-    mjds = fvcImg.mjd.to_numpy()
+# def reprocessFVC(centType="sep"):
+#     dfAll = pandas.read_csv("ditherFit_all_merged.csv")
+#     fcm = pandas.read_csv("fiducialCoords_dither_updated.csv")
+#     fvcImg = dfAll[["fvcImgNum", "mjd"]].groupby(["fvcImgNum", "mjd"]).first().reset_index().sort_values(["mjd","fvcImgNum"])
+#     fvcImgNums = fvcImg.fvcImgNum.to_numpy()
+#     mjds = fvcImg.mjd.to_numpy()
 
-    dfList = []
-    for imgNum, mjd in zip(fvcImgNums,mjds):
-        imgNumStr = str(imgNum).zfill(4)
-        ff = fits.open("/Volumes/futa/apo/data/fcam/%i/proc-fimg-fvc1n-%s.fits"%(mjd, imgNumStr))
-        posCoords = Table(ff["POSANGLES"].data).to_pandas()
+#     dfList = []
+#     for imgNum, mjd in zip(fvcImgNums,mjds):
+#         imgNumStr = str(imgNum).zfill(4)
+#         ff = fits.open("/Volumes/futa/apo/data/fcam/%i/proc-fimg-fvc1n-%s.fits"%(mjd, imgNumStr))
+#         posCoords = Table(ff["POSANGLES"].data).to_pandas()
 
-        fvct = FVCTransformAPO(
-            ff[1].data,
-            posCoords,
-            ff[1].header["IPA"],
-            fiducialCoords=fcm,
-            polids=POLIDS,
-            zbNormFactor=RMAX
-        )
-        fvct.extractCentroids()
-        fvct.fit(
-            centType=centType
-        )
+#         fvct = FVCTransformAPO(
+#             ff[1].data,
+#             posCoords,
+#             ff[1].header["IPA"],
+#             fiducialCoords=fcm,
+#             polids=POLIDS,
+#             zbNormFactor=RMAX
+#         )
+#         fvct.extractCentroids()
+#         fvct.fit(
+#             centType=centType
+#         )
 
-        _df = dfAll[(dfAll.fvcImgNum==imgNum) & (dfAll.mjd==mjd)]
-        _df = _df.groupby(["positionerID"]).first().reset_index()
+#         _df = dfAll[(dfAll.fvcImgNum==imgNum) & (dfAll.mjd==mjd)]
+#         _df = _df.groupby(["positionerID"]).first().reset_index()
 
-        _df = _df.merge(fvct.positionerTableMeas, on="positionerID", suffixes=(None, "_newFVC"))
-        _df["x_newFVC"] = _df.x
-        _df["y_newFVC"] = _df.y
+#         _df = _df.merge(fvct.positionerTableMeas, on="positionerID", suffixes=(None, "_newFVC"))
+#         _df["x_newFVC"] = _df.x
+#         _df["y_newFVC"] = _df.y
 
-        for kw in ["", "_newFVC"]:
-            x = _df.xWokDitherFit.to_numpy()
-            y = _df.yWokDitherFit.to_numpy()
-            dx = _df["xWokMeasBOSS%s"%kw] - x
-            dy = _df["yWokMeasBOSS%s"%kw] - y
-            _df["dxWok%s"%kw] = dx
-            _df["dyWok%s"%kw] = dy
-        dfList.append(_df)
+#         for kw in ["", "_newFVC"]:
+#             x = _df.xWokDitherFit.to_numpy()
+#             y = _df.yWokDitherFit.to_numpy()
+#             dx = _df["xWokMeasBOSS%s"%kw] - x
+#             dy = _df["yWokMeasBOSS%s"%kw] - y
+#             _df["dxWok%s"%kw] = dx
+#             _df["dyWok%s"%kw] = dy
+#         dfList.append(_df)
 
-    df = pandas.concat(dfList)
-    df.to_csv("dither_reprocess_fvc.csv", index=False)
+#     df = pandas.concat(dfList)
+#     df.to_csv("dither_reprocess_fvc.csv", index=False)
             # import pdb; pdb.set_trace()
         #     dr = numpy.sqrt(dx**2+dy**2)
         #     rms = numpy.sqrt(numpy.mean(dr**2))
@@ -790,42 +795,34 @@ if __name__ == "__main__":
     # # plotAll(mjd=60371) # after IMB change
     # # plotAll(mjd=60520) # new (bad) mount lco
 
+    #### LAST LCO DITHERS (pre robot replacement in jan 2025) ############
     # merge_all(mjds=[60521,60528, 60573, 60575, 60576])
     # plotGFADistortion(mjd=[60521,60528, 60573, 60575, 60576])
     # plotAll(mjd=[60521,60528, 60573, 60575, 60576]) # mount loosened
     # plotFVCdistortion(mjd=[60521,60528, 60573, 60575, 60576], fiducialOut="fiducial_coords_lco_60576.csv") # writes new file for fiducial positions
+    ####################################
 
-    merge_all(mjds=[60629, 60537, 60572, 60558, 60529]) #, suffix=".prePsfNudge") #, 60606])
-    plotAll(mjd=[60629, 60537, 60572, 60558, 60529])#, betaArmUpdate="positionerTable_apo_weighted2.csv") #, 60606]) #, 60537, 60572, 60558], betaArmUpdate="apo_positionerTable_barm_fixed.csv") # apo post shutdown
-    plotGFADistortion(mjd=[60629, 60537, 60572, 60558, 60529])#, filename="gfaCoords_apo_weighted2.csv") #, 60537, 60572, 60558])
-    plotFVCdistortion(mjd=[60629, 60537, 60572, 60558, 60529])#, fiducialOut="fiducialCoords_apo_weighted2.csv") #, 60606], fiducialOut="fiducialCoords_apo_weighted.csv") #, 60537, 60572, 60558], fiducialOut="junk_coords.csv")
+    #### LAST APO DITHERS? ##########################
+    # merge_all(mjds=[60629, 60537, 60572, 60558, 60529]) #, suffix=".prePsfNudge") #, 60606])
+    # plotAll(mjd=[60629, 60537, 60572, 60558, 60529])#, betaArmUpdate="positionerTable_apo_weighted2.csv") #, 60606]) #, 60537, 60572, 60558], betaArmUpdate="apo_positionerTable_barm_fixed.csv") # apo post shutdown
+    # plotGFADistortion(mjd=[60629, 60537, 60572, 60558, 60529])#, filename="gfaCoords_apo_weighted2.csv") #, 60537, 60572, 60558])
+    # plotFVCdistortion(mjd=[60629, 60537, 60572, 60558, 60529])#, fiducialOut="fiducialCoords_apo_weighted2.csv") #, 60606], fiducialOut="fiducialCoords_apo_weighted.csv") #, 60537, 60572, 60558], fiducialOut="junk_coords.csv")
     # plotFWHMs()
+    ################################################
 
 
-    # merge_all(mjds=[60558]) # apo post nudge
-    # merge_all(mjds=[60572]) # apo bright time eng
-    # plotAll(mjd=[60572])
-    # plotGFADistortion(mjd=[60572])
-    # plotFVCdistortion(mjd=[60572], fiducialOut="fiducial_coords_apo_60572.csv")
-
-    # plotBetaArm(mjd=60521)
-
-    # plt.show()
-    # update FIF locations
-    # warning make sure correct wok calibs are setup (for the site)
-    # plotFVCdistortion(mjd=[60521,60528]) # writes new file for fiducial positions
-    # reprocessFVC()
-    # plotReprocessFVC()
-    # plotPAvsDec()
+    # #### LCO Jan 2025 eng ###########
+    # merge_all(mjds=[60691, 60692, 60693]) # 60690 was a poor dither sequence no robot dithers and clouds came in
+    # plotAll(mjd=[60691, 60692, 60693], betaArmUpdate="positionerTable_lco_jan_25_4.csv")
+    # plotGFADistortion(mjd=[60691, 60692, 60693], filename="gfaCoords_lco_jan_25_4.csv")
+    # plotFVCdistortion(mjd=[60691, 60692, 60693], fiducialOut="fiducialCoords_lco_jan_25_4.csv", includeVar=True)
 
 
-    # dither script testing
-    # merge_all(mjds=[60606])
-    # plotAll(mjd=[60606])
-    # plotGFADistortion(mjd=[60606])
-    # plotFVCdistortion(mjd=[60606], fiducialOut="junk_coords_apo.csv")
-
-
+    #### APO revisit  Jan 2025 using flex model (no nudge) ###########
+    merge_all(mjds=[60693, 60661, 60629], site="apo") # 60606
+    plotAll(mjd=[60693, 60661, 60629], betaArmUpdate="positionerTable_apo_jan_25_4.csv")
+    plotGFADistortion(mjd=[60693, 60661, 60629], filename="gfaCoords_apo_jan_25_4.csv")
+    plotFVCdistortion(mjd=[60693, 60661, 60629], fiducialOut="fiducialCoords_apo_jan_25_4.csv", includeVar=True)
 
 
     plt.show()
