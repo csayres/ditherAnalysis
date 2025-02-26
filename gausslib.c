@@ -9,7 +9,7 @@ const double pi = 3.14159265358979323846;
 double bivariateGaussian(double r, double theta, double amp, double sigma, double starx, double stary, double fibx, double fiby){
     double x = r * cos(theta);
     double y = r * sin(theta);
-    double A = amp * (1.0 / 2 * pi * sigma * sigma);
+    double A = amp * (1.0 / (2.0 * pi * sigma * sigma));
     double B = ((x+starx-fibx)/sigma) * ((x+starx-fibx)/sigma);
     double C = ((y+stary-fiby)/sigma) * ((y+stary-fiby)/sigma);
     return r * A * exp(-0.5 * (B+C));

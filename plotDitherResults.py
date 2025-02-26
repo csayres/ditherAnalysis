@@ -46,6 +46,10 @@ def merge_all(mjds, suffix="", site=""):
     df = pandas.concat(dfList)
     # ignore configID 18717 (an apo field that seemed bad?)
     # df = df[df.configID != 18717]
+    # throw out data with unsuccessful fits
+    df = df[df.ditherFitSuccess==True]
+    # throw out data with negative flux amplitudes
+    df = df[df.fluxAmpDitherFit > 0]
     df.to_csv("ditherFit_all_merged.csv", index=False)
 
 
@@ -160,6 +164,9 @@ def plotAll(mjd=None, betaArmUpdate=None):
 
     if betaArmUpdate is not None:
         pt = calibration.positionerTable.reset_index()
+        # how many measurements are we averaging over for each robots?
+        for name, group in df.groupby("positionerID"):
+            print(name, "averaged over", len(group))
         _dfmean = df[["positionerID", "dxBetaArm", "dyBetaArm"]].groupby("positionerID").mean().reset_index()  # warning only boss fibers here!
         cols = pt.columns.to_list()
         ptNew = pt.merge(_dfmean, how="outer", on="positionerID")
@@ -812,17 +819,34 @@ if __name__ == "__main__":
 
 
     # #### LCO Jan 2025 eng ###########
-    # merge_all(mjds=[60691, 60692, 60693]) # 60690 was a poor dither sequence no robot dithers and clouds came in
+    # merge_all(mjds=[60691, 60692, 60693], site="lco") # 60690 was a poor dither sequence no robot dithers and clouds came in
     # plotAll(mjd=[60691, 60692, 60693], betaArmUpdate="positionerTable_lco_jan_25_4.csv")
     # plotGFADistortion(mjd=[60691, 60692, 60693], filename="gfaCoords_lco_jan_25_4.csv")
     # plotFVCdistortion(mjd=[60691, 60692, 60693], fiducialOut="fiducialCoords_lco_jan_25_4.csv", includeVar=True)
 
 
     #### APO revisit  Jan 2025 using flex model (no nudge) ###########
-    merge_all(mjds=[60693, 60661, 60629], site="apo") # 60606
-    plotAll(mjd=[60693, 60661, 60629], betaArmUpdate="positionerTable_apo_jan_25_4.csv")
-    plotGFADistortion(mjd=[60693, 60661, 60629], filename="gfaCoords_apo_jan_25_4.csv")
-    plotFVCdistortion(mjd=[60693, 60661, 60629], fiducialOut="fiducialCoords_apo_jan_25_4.csv", includeVar=True)
+    # merge_all(mjds=[60693, 60661, 60712], site="apo") # 60606, 60629,
+    # plotAll(mjd=[60693, 60661, 60712], betaArmUpdate="positionerTable_apo_feb_7_1.csv")
+    # plotGFADistortion(mjd=[60693, 60661, 60712], filename="gfaCoords_apo_feb_7_1.csv")
+    # plotFVCdistortion(mjd=[60693, 60661, 60712], fiducialOut="fiducialCoords_apo_feb_7_1.csv", includeVar=True)
 
+    # #### LCO Feb 2025 dither (pointing looks bad)
+    # merge_all(mjds=[60714], site="lco") # 60606, 60629,
+    # plotAll(mjd=[60714], betaArmUpdate="junk.csv")
+    # plotGFADistortion(mjd=[60714], filename="junk.csv")
+    # plotFVCdistortion(mjd=[60714], fiducialOut="junk.csv", includeVar=True)
+
+    #### APO Feb 2025 dither post attempted fix
+    # merge_all(mjds=[60715], site="apo") # 60606, 60629,
+    # plotAll(mjd=[60715], betaArmUpdate="junk.csv")
+    # plotGFADistortion(mjd=[60715], filename="junk.csv")
+    # plotFVCdistortion(mjd=[60715], fiducialOut="junk.csv", includeVar=True)
+
+    #### LCO Feb 2025 dither stui script blind tracking
+    merge_all(mjds=[60717], site="lco") # 60606, 60629,
+    plotAll(mjd=[60717], betaArmUpdate="junk.csv")
+    plotGFADistortion(mjd=[60717], filename="junk.csv")
+    plotFVCdistortion(mjd=[60717], fiducialOut="junk.csv", includeVar=True)
 
     plt.show()

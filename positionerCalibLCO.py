@@ -375,21 +375,33 @@ if __name__ == "__main__":
     ###############################################
 
     ############# lco #############################
+    # post robot replace
     ###############################################
-    imgNums = list(range(10,30)) + list(range(33,51))
-    imgs = ["/Users/csayres/Downloads/fcam/lco/60690/proc-fimg-fvc1s-%s.fits"%(str(x).zfill(4)) for x in imgNums]
-    # import pdb; pdb.set_trace()
 
+    # imgNums = list(range(10,30)) + list(range(33,51))
+    # imgs = ["/Users/csayres/Downloads/fcam/lco/60690/proc-fimg-fvc1s-%s.fits"%(str(x).zfill(4)) for x in imgNums]
+    # # hack robot 725 to it's old offset
+    # idx = numpy.argwhere(pt.positionerID==725)[0][0]
+    # alphaOffset = pt.alphaOffset.to_numpy()
+    # betaOffset = pt.betaOffset.to_numpy()
+    # alphaOffset[idx] = 3.948
+    # betaOffset[idx] = 0.846
+    # pt["alphaOffset"] = alphaOffset
+    # pt["betaOffset"] = betaOffset
 
-    # import pdb; pdb.set_trace()
-    # hack robot 725 to it's old offset
-    idx = numpy.argwhere(pt.positionerID==725)[0][0]
-    alphaOffset = pt.alphaOffset.to_numpy()
-    betaOffset = pt.betaOffset.to_numpy()
-    alphaOffset[idx] = 3.948
-    betaOffset[idx] = 0.846
-    pt["alphaOffset"] = alphaOffset
-    pt["betaOffset"] = betaOffset
+    # week or two post robot replecements, data taken for ap fiber measurements, but just using
+    # normal fvc loop data
+    imgNums = []
+    for imgNumStart, rot in [[12,180],[187,60]]:
+        imgNum = imgNumStart
+        for cc in range(15):
+            for ii in range(3):
+                imgNums.append(imgNum)
+                imgNum += 1
+            for ii in range(6):
+                imgNum += 1
+    imgs = ["/Users/csayres/Downloads/fcam/lco/60711/proc-fimg-fvc1s-%s.fits"%(str(x).zfill(4)) for x in imgNums]
+
 
     df = processImgs("stage0", imgs, pt=pt)
     # df, brokenMets = massage(df) # massage for APO
@@ -433,7 +445,8 @@ if __name__ == "__main__":
 
     plt.show()
 
-
+    # weird robots {864, 563}
+    # long mets [564, 563, 864, 1166]
 
 
     import pdb; pdb.set_trace()
