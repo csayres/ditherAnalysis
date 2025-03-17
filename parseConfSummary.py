@@ -159,41 +159,46 @@ def parseFiberMapLine(line):
 
 
 def parseConfSummary(confFilePath):
-    with open(confFilePath, "r") as f:
-        lines = f.readlines()
+    # with open(confFilePath, "r") as f:
+    #     lines = f.readlines()
 
-    dictList = []
-    for line in lines:
-        line = line.strip("\n")
-        if line.startswith("fvc_image_path"):
-            fvcImgNum = int(line.split("-")[-1].strip(".fits"))
-        if line.startswith("configuration_id"):
-            confid = int(line.split()[-1])
-        if line.startswith("design_id"):
-            designid = int(line.split()[-1])
-        if line.startswith("MJD"):
-            mjd = int(line.split()[-1])
-        if line.startswith("focal_scale"):
-            focal_scale = float(line.split()[-1])
-        if line.startswith("raCen"):
-            field_cen_ra = float(line.split()[-1])
-        if line.startswith("decCen"):
-            field_cen_dec = float(line.split()[-1])
-        if line.startswith("pa"):
-            field_cen_pa = float(line.split()[-1])
+    # dictList = []
+    # for line in lines:
+    #     line = line.strip("\n")
+    #     if line.startswith("fvc_image_path"):
+    #         fvcImgNum = int(line.split("-")[-1].strip(".fits"))
+    #     if line.startswith("configuration_id"):
+    #         confid = int(line.split()[-1])
+    #     if line.startswith("design_id"):
+    #         designid = int(line.split()[-1])
+    #     if line.startswith("MJD"):
+    #         mjd = int(line.split()[-1])
+    #     if line.startswith("focal_scale"):
+    #         focal_scale = float(line.split()[-1])
+    #     if line.startswith("raCen"):
+    #         field_cen_ra = float(line.split()[-1])
+    #     if line.startswith("decCen"):
+    #         field_cen_dec = float(line.split()[-1])
+    #     if line.startswith("pa"):
+    #         field_cen_pa = float(line.split()[-1])
 
-        if line.startswith("FIBERMAP"):
-            dictList.append(parseFiberMapLine(line))
+    #     if line.startswith("FIBERMAP"):
+    #         dictList.append(parseFiberMapLine(line))
+    # df = pandas.DataFrame(dictList)
 
-    df = pandas.DataFrame(dictList)
-    df["configID"] = confid
-    df["designID"] = designid
-    df["mjd"] = mjd
-    df["focal_scale"] = focal_scale
+
+    df = pandas.read_parquet(confFilePath)
+    fvcImgNum = df.fvc_image_path.iloc[0]
+    fvcImgNum = int(fvcImgNum.split("-")[-1].strip(".fits"))
+
+
+    df["configID"] = df.configuration_id
+    df["designID"] = df.design_id
+    df["mjd"] = df.MJD
     df["fvcImgNum"] = fvcImgNum
-    df["field_cen_ra"] = field_cen_ra
-    df["field_cen_dec"] = field_cen_dec
-    df["field_cen_pa"] = field_cen_pa
+    df["field_cen_ra"] = df.raCen
+    df["field_cen_dec"] = df.decCen
+    df["field_cen_pa"] = df.pa
     df = df[df.firstcarton == "manual_fps_position_stars_10"].reset_index(drop=True)
     # import pdb; pdb.set_trace()
 
