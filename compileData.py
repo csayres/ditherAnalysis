@@ -161,7 +161,7 @@ def parseConfSummary(confFilePath):
         g_mag.append(row.mag[1])
         r_mag.append(row.mag[2])
         i_mag.append(row.mag[3])
-        u_mag.append(row.mag[4])
+        z_mag.append(row.mag[4])
     df["u_mag"] = u_mag
     df["g_mag"] = g_mag
     df["r_mag"] = r_mag
