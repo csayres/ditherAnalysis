@@ -151,6 +151,24 @@ def parseConfSummary(confFilePath):
     df["holeID"] = df.holeId
     df = df[df.firstcarton == "manual_fps_position_stars_10"].reset_index(drop=True)
 
+    u_mag = []
+    g_mag = []
+    r_mag = []
+    i_mag = []
+    z_mag = []
+    for idx, row in df.iterrows():
+        u_mag.append(row.mag[0])
+        g_mag.append(row.mag[1])
+        r_mag.append(row.mag[2])
+        i_mag.append(row.mag[3])
+        u_mag.append(row.mag[4])
+    df["u_mag"] = u_mag
+    df["g_mag"] = g_mag
+    df["r_mag"] = r_mag
+    df["i_mag"] = i_mag
+    df["z_mag"] = z_mag
+
+
     return df
 
 def procOneGFA(imgNum, mjd, site):
