@@ -19,7 +19,7 @@ import sys
 from functools import partial
 import seaborn as sns
 
-from parseConfSummary import parseConfSummary
+# from parseConfSummary import parseConfSummary
 from findFiberCenter import fitOneSet, _plotOne, fractionalFlux
 
 # mjd = 60420
@@ -131,6 +131,27 @@ def getConfSummPath(configID, site, location=LOCATION):
         confPath = "/uufs/chpc.utah.edu/common/home/sdss50/software/git/sdss/sdsscore/main/%s/summary_files/%s/%s/confSummaryFS-%i.parquet"%(site, confStr2, confStr, configID)
 
     return confPath
+
+def parseConfSummary(confFilePath):
+
+    df = pandas.read_parquet(confFilePath)
+    fvcImgNum = df.fvc_image_path.iloc[0]
+    fvcImgNum = int(fvcImgNum.split("-")[-1].strip(".fits"))
+
+
+    df["configID"] = df.configuration_id
+    df["designID"] = df.design_id
+    df["mjd"] = df.MJD
+    df["fvcImgNum"] = fvcImgNum
+    df["field_cen_ra"] = df.raCen
+    df["field_cen_dec"] = df.decCen
+    df["field_cen_pa"] = df.pa
+    df["fiberID"] = df.fiberId
+    df["positionerID"] = df.positionerId
+    df["holeID"] = df.holeId
+    df = df[df.firstcarton == "manual_fps_position_stars_10"].reset_index(drop=True)
+
+    return df
 
 def procOneGFA(imgNum, mjd, site):
     imgs = getGFAFiles(mjd,site,imgNum)

@@ -199,6 +199,9 @@ def parseConfSummary(confFilePath):
     df["field_cen_ra"] = df.raCen
     df["field_cen_dec"] = df.decCen
     df["field_cen_pa"] = df.pa
+    df["fiberID"] = df.fiberId
+    df["positionerID"] = df.positionerId
+    df["holeID"] = df.holeId
     df = df[df.firstcarton == "manual_fps_position_stars_10"].reset_index(drop=True)
     # import pdb; pdb.set_trace()
 
