@@ -617,6 +617,7 @@ def plotGFADistortion(mjd=None, preNudge=False, filename=None):
     dfList = []
     xGFAoff = []
     yGFAoff = []
+    gfaNum = []
     for name, group in df.groupby("gfaNum"):
         plt.figure()
         plt.hist(group.drWok, bins=100)
@@ -647,6 +648,7 @@ def plotGFADistortion(mjd=None, preNudge=False, filename=None):
         # print("mean xy offset", dxOff, dyOff)
         xGFAoff.append(dxOff)
         yGFAoff.append(dyOff)
+        gfaNum.append(name)
 
         group["dxWokFit"] = group.dxWok - dxOff
         group["dyWokFit"] = group.dyWok - dyOff
@@ -665,10 +667,16 @@ def plotGFADistortion(mjd=None, preNudge=False, filename=None):
 
     df = pandas.concat(dfList)
 
+
     ### apply dc xy offset to current gfaCoords
     # import pdb; pdb.set_trace()
-    gfaCoords["xWok"] = gfaCoords.xWok - numpy.array(xGFAoff)
-    gfaCoords["yWok"] = gfaCoords.yWok - numpy.array(yGFAoff)
+    # missingGFAs = set(range(1,7)) - set(gfaNum)
+    # gfaCoords["xWok"] = gfaCoords.xWok - numpy.array(xGFAoff)
+    # gfaCoords["yWok"] = gfaCoords.yWok - numpy.array(yGFAoff)
+
+    for _gfaNum, _xOff, _yOff in zip(gfaNum, xGFAoff, yGFAoff):
+        gfaCoords.loc[gfaCoords.id==_gfaNum, "xWok"] = gfaCoords.loc[gfaCoords.id==_gfaNum, "xWok"] - _xOff
+        gfaCoords.loc[gfaCoords.id==_gfaNum, "yWok"] = gfaCoords.loc[gfaCoords.id==_gfaNum, "yWok"] - _yOff
 
     if filename is not None:
         gfaCoords.to_csv(filename)
@@ -844,9 +852,16 @@ if __name__ == "__main__":
     # plotFVCdistortion(mjd=[60715], fiducialOut="junk.csv", includeVar=True)
 
     #### LCO Feb 2025 dither stui script blind tracking
-    merge_all(mjds=[60717], site="lco") # 60606, 60629,
-    plotAll(mjd=[60717], betaArmUpdate="junk.csv")
-    plotGFADistortion(mjd=[60717], filename="junk.csv")
-    plotFVCdistortion(mjd=[60717], fiducialOut="junk.csv", includeVar=True)
+    # merge_all(mjds=[60717], site="lco") # 60606, 60629,
+    # plotAll(mjd=[60717], betaArmUpdate="junk.csv")
+    # plotGFADistortion(mjd=[60717], filename="junk.csv")
+    # plotFVCdistortion(mjd=[60717], fiducialOut="junk.csv", includeVar=True)
+
+    ### LCO July 2025 ### back to junk data?
+    merge_all(mjds=[60867, 60815], site="lco") # 60606, 60629,
+    plotAll(mjd=[60867, 60815], betaArmUpdate="junk.csv")
+    plotGFADistortion(mjd=[60867, 60815], filename="junk.csv")
+    plotFVCdistortion(mjd=[60867, 60815], fiducialOut="junk.csv", includeVar=True)
+
 
     plt.show()

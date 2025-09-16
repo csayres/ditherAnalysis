@@ -38,7 +38,8 @@ site = "APO"
 
 # 54 first robot to get to run by disabling, maybe its flux?
 
-disabledRobots = [608, 612, 1136, 182, 54, 1300, 565, 719]
+# disabledRobots = [608, 612, 1136, 182, 54, 1300, 565, 719]
+disabledRobot = None
 
 
 def processImg(imgPath, name, pt, wc, fc):
@@ -318,28 +319,28 @@ def massage(df):
 if __name__ == "__main__":
 
     # quick look:
-    pt = pandas.read_csv("ptorig.csv")
-    ptOut = pandas.read_csv("ptnew.csv")
-    # plot difference in xy robot positions
-    ptm = pt.merge(ptOut, on=["positionerID", "holeID"], suffixes=("_o", "_n"))
-    ptm = ptm.merge(wc, on="holeID")
-    ptm["dx"] = ptm.dx_n - ptm.dx_o
-    ptm["dy"] = ptm.dy_n - ptm.dy_o
-    ptm["dr"] = numpy.sqrt(ptm.dx**2+ptm.dy**2)
-    plt.figure()
-    plt.hist(ptm.dr)
+    # pt = pandas.read_csv("ptorig.csv")
+    # ptOut = pandas.read_csv("ptnew.csv")
+    # # plot difference in xy robot positions
+    # ptm = pt.merge(ptOut, on=["positionerID", "holeID"], suffixes=("_o", "_n"))
+    # ptm = ptm.merge(wc, on="holeID")
+    # ptm["dx"] = ptm.dx_n - ptm.dx_o
+    # ptm["dy"] = ptm.dy_n - ptm.dy_o
+    # ptm["dr"] = numpy.sqrt(ptm.dx**2+ptm.dy**2)
+    # plt.figure()
+    # plt.hist(ptm.dr)
 
-    brokenRobots = [1026, 1290, 523, 639, 275, 535, 1049, 1051, 671, 802, 1187, 935, 1202, 201, 460, 716, 846, 1231, 985, 478, 1246, 995, 997, 503, 1023, 984, 1043]
+    # brokenRobots = [1026, 1290, 523, 639, 275, 535, 1049, 1051, 671, 802, 1187, 935, 1202, 201, 460, 716, 846, 1231, 985, 478, 1246, 995, 997, 503, 1023, 984, 1043]
 
-    plt.figure(figsize=(8,8))
-    plt.quiver(ptm.xWok, ptm.yWok, ptm.dx, ptm.dy, angles="xy", units="xy", scale=0.001)
-    plt.axis("equal")
+    # plt.figure(figsize=(8,8))
+    # plt.quiver(ptm.xWok, ptm.yWok, ptm.dx, ptm.dy, angles="xy", units="xy", scale=0.001)
+    # plt.axis("equal")
 
-    ptm = ptm[ptm.positionerID.isin(brokenRobots)]
-    plt.quiver(ptm.xWok, ptm.yWok, ptm.dx, ptm.dy, color="red", angles="xy", units="xy", scale=0.001)
+    # ptm = ptm[ptm.positionerID.isin(brokenRobots)]
+    # plt.quiver(ptm.xWok, ptm.yWok, ptm.dx, ptm.dy, color="red", angles="xy", units="xy", scale=0.001)
 
-    plt.show()
-    import pdb; pdb.set_trace()
+    # plt.show()
+    # import pdb; pdb.set_trace()
 
     # pt1 = pandas.read_csv("ptorig.csv")
     # pt2 = pandas.read_csv("ptnew.csv")
@@ -408,81 +409,81 @@ if __name__ == "__main__":
     # recalib based on fvc images from 60700-73
     # have to be careful to just pick first fvc image after blind robot move
     # and handle stationary robots correctly (eg ignore them).
-    posAngles = []
-    imgs = []
-    lastConfig = None
-    for mjd in [60700, 60701, 60702, 60703]:
-        fs = glob.glob("/Users/csayres/Downloads/fcam/%i/proc*.fits"%mjd)
-        fs = sorted(fs)
-        for f in fs:
-            ff = fits.open(f)
-            pa = Table(ff["POSANGLES"].data).to_pandas()
-            medianAlpha = numpy.around(numpy.median(pa["alphaReport"]))
-            medianBeta = numpy.around(numpy.median(pa["betaReport"]))
-            if medianAlpha==10.0 and medianBeta==170.0:
-                print("skipping folded file", f)
-                continue
+    # posAngles = []
+    # imgs = []
+    # lastConfig = None
+    # for mjd in [60700, 60701, 60702, 60703]:
+    #     fs = glob.glob("/Users/csayres/Downloads/fcam/%i/proc*.fits"%mjd)
+    #     fs = sorted(fs)
+    #     for f in fs:
+    #         ff = fits.open(f)
+    #         pa = Table(ff["POSANGLES"].data).to_pandas()
+    #         medianAlpha = numpy.around(numpy.median(pa["alphaReport"]))
+    #         medianBeta = numpy.around(numpy.median(pa["betaReport"]))
+    #         if medianAlpha==10.0 and medianBeta==170.0:
+    #             print("skipping folded file", f)
+    #             continue
 
-            configID = ff[1].header["CONFIGID"]
-            if configID == lastConfig:
-                print("skipping, already have image for this config", f)
-                continue
+    #         configID = ff[1].header["CONFIGID"]
+    #         if configID == lastConfig:
+    #             print("skipping, already have image for this config", f)
+    #             continue
 
-            imgs.append(f)
-            pa["configID"] = configID
-            posAngles.append(pa)
-            lastConfig = configID
-            print("keeping", f)
+    #         imgs.append(f)
+    #         pa["configID"] = configID
+    #         posAngles.append(pa)
+    #         lastConfig = configID
+    #         print("keeping", f)
 
-    posAngles = pandas.concat(posAngles)
-    pa_std = posAngles[["positionerID", "alphaReport", "betaReport"]].groupby("positionerID").std().reset_index()
+    # posAngles = pandas.concat(posAngles)
+    # pa_std = posAngles[["positionerID", "alphaReport", "betaReport"]].groupby("positionerID").std().reset_index()
 
-    plt.figure()
-    plt.plot(pa_std.positionerID, pa_std.alphaReport, "o-", label="std alpha")
-    plt.plot(pa_std.positionerID, pa_std.betaReport, "o-", mfc="none", mec="black", label="std beta")
-    plt.legend()
-    plt.show()
+    # plt.figure()
+    # plt.plot(pa_std.positionerID, pa_std.alphaReport, "o-", label="std alpha")
+    # plt.plot(pa_std.positionerID, pa_std.betaReport, "o-", mfc="none", mec="black", label="std beta")
+    # plt.legend()
+    # plt.show()
 
-    # list broken robots
-    pa_broken = pa_std[pa_std.alphaReport < 0.2]
-    pa_broken = pa_broken[pa_broken.betaReport < 0.2]
+    # # list broken robots
+    # pa_broken = pa_std[pa_std.alphaReport < 0.2]
+    # pa_broken = pa_broken[pa_broken.betaReport < 0.2]
 
-    brokenRobots = list(set(pa_broken.positionerID))
-    print("broken robots", len(brokenRobots), brokenRobots)
-    # add in 984 and 1043 (recently broken metrology)
-    brokenRobots += [984, 1043]
-
-
-
-    df = processImgs("stage0", imgs, pt=pt)
-    # remove broken robots
-    df = df[~df.positionerID.isin(brokenRobots)]
-    df.to_csv("dforig.csv")
-
-    plotDistances(df, title="stage0")
-
-    ptOut = fitCalibs(pt, df, disabledRobots=brokenRobots)
-    dfNew = processImgs("stage2", imgs, pt=ptOut)
-    dfNew = dfNew[~dfNew.positionerID.isin(brokenRobots)]
-    plotDistances(dfNew, title="stage1")
+    # brokenRobots = list(set(pa_broken.positionerID))
+    # print("broken robots", len(brokenRobots), brokenRobots)
+    # # add in 984 and 1043 (recently broken metrology)
+    # brokenRobots += [984, 1043]
 
 
-    pt.to_csv("ptorig.csv")
-    ptOut.to_csv("ptnew.csv")
-    df.to_csv("dforig.csv")
-    dfNew.to_csv("dfnew.csv")
+
+    # df = processImgs("stage0", imgs, pt=pt)
+    # # remove broken robots
+    # df = df[~df.positionerID.isin(brokenRobots)]
+    # df.to_csv("dforig.csv")
+
+    # plotDistances(df, title="stage0")
+
+    # ptOut = fitCalibs(pt, df, disabledRobots=brokenRobots)
+    # dfNew = processImgs("stage2", imgs, pt=ptOut)
+    # dfNew = dfNew[~dfNew.positionerID.isin(brokenRobots)]
+    # plotDistances(dfNew, title="stage1")
 
 
+    # pt.to_csv("ptorig.csv")
+    # ptOut.to_csv("ptnew.csv")
+    # df.to_csv("dforig.csv")
+    # dfNew.to_csv("dfnew.csv")
 
 
 
 
-    plt.show()
+
+
+    # plt.show()
 
 
 
 
-    import pdb; pdb.set_trace()
+    # import pdb; pdb.set_trace()
 
 
 
@@ -505,6 +506,43 @@ if __name__ == "__main__":
     # plotDistances(df, title="2.3")
 
     # ############# danger move calibration #########################
+
+
+    ##### apo shutdown 2025 ###########
+    ### safe moves ###
+    # mjd = 60930
+    # imgStart = 80
+    # imgEnd = 115
+    #################
+
+    ### danger moves ###
+    mjd = 60931
+    imgStart = 4
+    imgEnd = 42
+
+
+    imgList = []
+    for imgNum in range(imgStart, imgEnd+1):
+        imgStr = str(imgNum).zfill(4)
+        baseDir = "/Users/csayres/Downloads/fcam/%i"%mjd
+        imgList.append(baseDir+"/proc-fimg-fvc1n-%s.fits"%imgStr)
+
+    df = processImgs("stage0", imgList, pt=pt)
+    df.to_csv("dfstart.csv")
+    plotDistances(df, title="start")
+
+
+    positionerTableOut = fitCalibs(pt, df)
+    positionerTableOut.to_csv("positionerTable.apo.danger2025.csv", index_label="id")
+
+    df = processImgs("stage1", imgList, pt=positionerTableOut)
+    df.to_csv("dfdanger.csv")
+    plotDistances(df, title="danger")
+
+    plt.show()
+
+    import pdb; pdb.set_trace()
+
 
 
 
