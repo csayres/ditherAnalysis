@@ -41,6 +41,10 @@ site = "APO"
 # disabledRobots = [608, 612, 1136, 182, 54, 1300, 565, 719]
 disabledRobot = None
 
+# apo old and new darks
+olddark = numpy.array(fits.open("olddark.fits")[1].data, dtype=float)[:,::-1]
+newdark = numpy.array(fits.open("olddark.fits")[1].data, dtype=float)[:,::-1]
+
 
 def processImg(imgPath, name, pt, wc, fc):
     # print("imgPath", imgPath)
@@ -49,6 +53,7 @@ def processImg(imgPath, name, pt, wc, fc):
     ff = fits.open(imgPath)
 
     imgData = ff[1].data
+    imgData = imgData + olddark - newdark
     posAngles = Table(ff["POSANGLES"].data).to_pandas()
     IPA = ff[1].header["IPA"]
 
@@ -146,7 +151,7 @@ def minimizeMe(x, positionerID, alphaDeg, betaDeg, xWok, yWok):
     return numpy.sum((xw-xWok)**2 + (yw-yWok)**2)
 
 
-def fitCalibs(positionerTableIn, positionerTableMeas, disabledRobots=None):
+def fitCalibs(positionerTableIn, positionerTableMeas, disabledRobots=None, keepF2F=True):
     x0 = numpy.array([
         defaults.MET_BETA_XY[0], defaults.ALPHA_LEN,
         0, 0, 0, 0
@@ -200,12 +205,19 @@ def fitCalibs(positionerTableIn, positionerTableMeas, disabledRobots=None):
     _dy = numpy.array(_dy)
 
     positionerTableOut = positionerTableIn.copy()
+    dxBoss = positionerTableOut.bossX.to_numpy() - positionerTableOut.metX.to_numpy()
+    dxAp = positionerTableOut.apX.to_numpy() - positionerTableOut.apX.to_numpy()
     positionerTableOut["metX"] = _xBeta
     positionerTableOut["alphaArmLen"] = _la
     positionerTableOut["alphaOffset"] = _alphaOffDeg
     positionerTableOut["betaOffset"] = _betaOffDeg
     positionerTableOut["dx"] = _dx
     positionerTableOut["dy"] = _dy
+    if keepF2F:
+        positionerTableOut["bossX"] = positionerTableOut.metX + dxBoss
+        positionerTableOut["apX"] = positionerTableOut.metX + dxAp
+
+
 
     return positionerTableOut
 
@@ -516,16 +528,23 @@ if __name__ == "__main__":
     #################
 
     ### danger moves ###
-    mjd = 60931
-    imgStart = 4
-    imgEnd = 42
+    # mjd = 60931
+    # imgStart = 4
+    # imgEnd = 42
+
+    dd = {
+        60931: [4,42],
+        60931: [58,84],
+        60932: [3,107]
+    }
 
 
     imgList = []
-    for imgNum in range(imgStart, imgEnd+1):
-        imgStr = str(imgNum).zfill(4)
-        baseDir = "/Users/csayres/Downloads/fcam/%i"%mjd
-        imgList.append(baseDir+"/proc-fimg-fvc1n-%s.fits"%imgStr)
+    for mjd, imgRange in dd.items():
+        for imgNum in range(imgRange[0], imgRange[1]+1):
+            imgStr = str(imgNum).zfill(4)
+            baseDir = "/Users/csayres/Downloads/fcam/%i"%mjd
+            imgList.append(baseDir+"/proc-fimg-fvc1n-%s.fits"%imgStr)
 
     df = processImgs("stage0", imgList, pt=pt)
     df.to_csv("dfstart.csv")
@@ -533,7 +552,7 @@ if __name__ == "__main__":
 
 
     positionerTableOut = fitCalibs(pt, df)
-    positionerTableOut.to_csv("positionerTable.apo.danger2025.csv", index_label="id")
+    positionerTableOut.to_csv("positionerTable.apo.danger2025.winpos.f2f.csv", index_label="id")
 
     df = processImgs("stage1", imgList, pt=positionerTableOut)
     df.to_csv("dfdanger.csv")

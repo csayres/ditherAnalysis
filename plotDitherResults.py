@@ -6,7 +6,7 @@ from coordio.zhaoburge import fitZhaoBurge, getZhaoBurgeXY
 from coordio import calibration
 from skimage.transform import SimilarityTransform, EuclideanTransform
 import seaborn as sns
-from coordio.transforms import FVCTransformAPO
+# from coordio.transforms import FVCTransformAPO
 from astropy.io import fits
 from astropy.table import Table
 
@@ -858,10 +858,18 @@ if __name__ == "__main__":
     # plotFVCdistortion(mjd=[60717], fiducialOut="junk.csv", includeVar=True)
 
     ### LCO July 2025 ### back to junk data?
-    merge_all(mjds=[60867, 60815], site="lco") # 60606, 60629,
-    plotAll(mjd=[60867, 60815], betaArmUpdate="junk.csv")
-    plotGFADistortion(mjd=[60867, 60815], filename="junk.csv")
-    plotFVCdistortion(mjd=[60867, 60815], fiducialOut="junk.csv", includeVar=True)
+    # merge_all(mjds=[60867, 60815], site="lco") # 60606, 60629,
+    # plotAll(mjd=[60867, 60815], betaArmUpdate="junk.csv")
+    # plotGFADistortion(mjd=[60867, 60815], filename="junk.csv")
+    # plotFVCdistortion(mjd=[60867, 60815], fiducialOut="junk.csv", includeVar=True)
+
+
+    ## APO sept 2025 (post shutdown)####
+    merge_all(mjds=[60939], site="apo") # 60606, 60629,
+    plotAll(mjd=[60939], betaArmUpdate="junk.csv")
+    plotGFADistortion(mjd=[60939], filename="junk.csv")
+    plotFVCdistortion(mjd=[60939], fiducialOut="junk.csv", includeVar=True)
+
 
 
     plt.show()

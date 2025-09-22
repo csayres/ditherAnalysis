@@ -28,7 +28,7 @@ warnings.filterwarnings("ignore", message="Warning! Coordinate far off telescope
 
 POLIDS=numpy.array([0, 1, 2, 3, 4, 5, 6, 9, 20, 27, 28, 29, 30])
 RMAX = 310
-CENTTYPE = "nudge"
+CENTTYPE = "flex"
 
 _hostname = socket.gethostname()
 
@@ -484,6 +484,9 @@ def getFVCData(mjd, site, expNum, reprocess=False):
     imgPath = getFVCPath(mjd, site, expNum)
     ff = fits.open(imgPath)
 
+    olddark = numpy.array(fits.open("olddark.fits")[1].data, dtype=float)[:,::-1]
+    newdark = numpy.array(fits.open("olddark.fits")[1].data, dtype=float)[:,::-1]
+
     if reprocess:
         print("reprocessing fvc image", imgPath)
         pt = calibration.positionerTable.reset_index()
@@ -501,7 +504,7 @@ def getFVCData(mjd, site, expNum, reprocess=False):
             fc = fc[fc.site=="APO"]
 
         fvct = _fvct(
-            ff[1].data,
+            ff[1].data + olddark - newdark,
             Table(ff["POSANGLES"].data).to_pandas(),
             ff[1].header["IPA"],
             positionerTable=pt,
@@ -1187,7 +1190,7 @@ if __name__ == "__main__":
     site = sys.argv[2].lower()
     getDitherTables(mjd, site, reprocGFA=True, reprocFVC=True)
     computeWokCoords(mjd, site)
-    fitFiberCenters(mjd, site, reprocess=False)
+    fitFiberCenters(mjd, site, reprocess=True)
 
     # fitBOSSExp(mjd, site)
 
