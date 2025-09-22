@@ -43,7 +43,7 @@ disabledRobot = None
 
 # apo old and new darks
 olddark = numpy.array(fits.open("olddark.fits")[1].data, dtype=float)[:,::-1]
-newdark = numpy.array(fits.open("olddark.fits")[1].data, dtype=float)[:,::-1]
+newdark = numpy.array(fits.open("newdark.fits")[1].data, dtype=float)[:,::-1]
 
 
 def processImg(imgPath, name, pt, wc, fc):

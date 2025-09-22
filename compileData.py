@@ -485,7 +485,7 @@ def getFVCData(mjd, site, expNum, reprocess=False):
     ff = fits.open(imgPath)
 
     olddark = numpy.array(fits.open("olddark.fits")[1].data, dtype=float)[:,::-1]
-    newdark = numpy.array(fits.open("olddark.fits")[1].data, dtype=float)[:,::-1]
+    newdark = numpy.array(fits.open("newdark.fits")[1].data, dtype=float)[:,::-1]
 
     if reprocess:
         print("reprocessing fvc image", imgPath)
