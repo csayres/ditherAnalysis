@@ -106,7 +106,7 @@ def fitOneSet(xInit, starx, stary, flux, method="Powell", flux_ivar=1):
 
     tstart = time.time()
     _minimizeMe = partial(minimizeMe1, starx=starx, stary=stary, flux=flux, flux_ivar=flux_ivar)
-    minOut = minimize(_minimizeMe, xInit, bounds=[(0,None),(0,None),(None,None,(None,None))], method=method) #, options={"disp":True})
+    minOut = minimize(_minimizeMe, xInit, bounds=[(0,None),(0,None),(None,None),(None,None)], method=method) #, options={"disp":True})
     fitAmp, fitSigma, fitFiberX, fitFiberY = minOut.x
     print("minimize took", time.time()-tstart)
 
