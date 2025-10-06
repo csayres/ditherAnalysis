@@ -484,8 +484,8 @@ def getFVCData(mjd, site, expNum, reprocess=False):
     imgPath = getFVCPath(mjd, site, expNum)
     ff = fits.open(imgPath)
 
-    olddark = numpy.array(fits.open("olddark.fits")[1].data, dtype=float)[:,::-1]
-    newdark = numpy.array(fits.open("newdark.fits")[1].data, dtype=float)[:,::-1]
+    # olddark = numpy.array(fits.open("olddark.fits")[1].data, dtype=float)[:,::-1]
+    # newdark = numpy.array(fits.open("newdark.fits")[1].data, dtype=float)[:,::-1]
 
     if reprocess:
         print("reprocessing fvc image", imgPath)
@@ -504,7 +504,7 @@ def getFVCData(mjd, site, expNum, reprocess=False):
             fc = fc[fc.site=="APO"]
 
         fvct = _fvct(
-            ff[1].data + olddark - newdark,
+            ff[1].data, #+ olddark - newdark,
             Table(ff["POSANGLES"].data).to_pandas(),
             ff[1].header["IPA"],
             positionerTable=pt,
@@ -661,7 +661,28 @@ def getDitherTables(mjd, site, reprocGFA=False, reprocFVC=False):
 
     # get the fvc data
     fvcImgNums = list(set(dfConfSumm.fvcImgNum))
-    dfList = [getFVCData(mjd, site, x, reprocFVC) for x in fvcImgNums]
+    # next find additional "no apply fvc images where robots werent moved"
+    # after the fvc loop additional fvc loop --no-apply --no-write summaries are taken
+    fvcImgNumNoApply = []
+    for fvcImgNum in fvcImgNums:
+        _cid = fits.open(getFVCPath(mjd, site, fvcImgNum))[1].header["CONFIGID"]
+        ii = 0
+        while True:
+            ii += 1
+            nextImgNum = fvcImgNum + ii
+            try:
+                _cid2 = fits.open(getFVCPath(mjd, site, nextImgNum))[1].header["CONFIGID"]
+            except:
+                break
+            if _cid2 != _cid:
+                break
+            fvcImgNumNoApply.append(nextImgNum)
+
+    dfConfSumm = dfConfSumm.drop("fvcImgNum", axis=1)
+
+    dfList = [getFVCData(mjd, site, x, reprocFVC) for x in sorted(fvcImgNums + fvcImgNumNoApply)]
+
+
 
     dfFVC = pandas.concat(dfList)
 
@@ -720,7 +741,8 @@ def computeWokCoords(mjd, site):
     df = df.merge(dfConfSumm, on=["mjd", "configID", "fiberID"], suffixes=("_gfa", "_conf")).reset_index()
     # import pdb; pdb.set_trace()
 
-    df = df.merge(dfFVC, on=["configID", "designID", "positionerID", "mjd", "fvcImgNum"], suffixes=("_gfa", "_fvc"))
+    # df = df.merge(dfFVC, on=["configID", "designID", "positionerID", "mjd", "fvcImgNum"], suffixes=("_gfa", "_fvc"))
+    df = df.merge(dfFVC, on=["configID", "designID", "positionerID", "mjd"], suffixes=("_gfa", "_fvc"))
     # df["fiberID"] = df.bossSpecID
     # for col in df.columns:
     #     print(col)

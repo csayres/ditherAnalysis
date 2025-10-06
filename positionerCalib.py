@@ -39,11 +39,11 @@ site = "APO"
 # 54 first robot to get to run by disabling, maybe its flux?
 
 # disabledRobots = [608, 612, 1136, 182, 54, 1300, 565, 719]
-disabledRobot = None
+# disabledRobot = None
 
 # apo old and new darks
-olddark = numpy.array(fits.open("olddark.fits")[1].data, dtype=float)[:,::-1]
-newdark = numpy.array(fits.open("newdark.fits")[1].data, dtype=float)[:,::-1]
+# olddark = numpy.array(fits.open("olddark.fits")[1].data, dtype=float)[:,::-1]
+# newdark = numpy.array(fits.open("newdark.fits")[1].data, dtype=float)[:,::-1]
 
 
 def processImg(imgPath, name, pt, wc, fc):
@@ -53,7 +53,7 @@ def processImg(imgPath, name, pt, wc, fc):
     ff = fits.open(imgPath)
 
     imgData = ff[1].data
-    imgData = imgData + olddark - newdark
+    # imgData = imgData + olddark - newdark
     posAngles = Table(ff["POSANGLES"].data).to_pandas()
     IPA = ff[1].header["IPA"]
 
@@ -83,6 +83,9 @@ def processImg(imgPath, name, pt, wc, fc):
     # robots are a bit off (mostly trans/rot/scale)
     fvct.fit(centType=centType)
     ptm = fvct.positionerTableMeas.copy()
+    ptm = ptm[ptm.wokErrWarn == False]
+    # print(ptm.wokErrWarn)
+
     ptm["fvcImgNum"] = imgNum
     ptm["mjd"] = mjd
 
@@ -148,14 +151,14 @@ def forwardModel(x, positionerID, alphaDeg, betaDeg):
 
 def minimizeMe(x, positionerID, alphaDeg, betaDeg, xWok, yWok):
     xw, yw = forwardModel(x, positionerID, alphaDeg, betaDeg)
-    return numpy.sum((xw-xWok)**2 + (yw-yWok)**2)
+    return numpy.mean((xw-xWok)**2 + (yw-yWok)**2)
 
 
 def fitCalibs(positionerTableIn, positionerTableMeas, disabledRobots=None, keepF2F=True):
-    x0 = numpy.array([
-        defaults.MET_BETA_XY[0], defaults.ALPHA_LEN,
-        0, 0, 0, 0
-    ])
+    # x0 = numpy.array([
+    #     defaults.MET_BETA_XY[0], defaults.ALPHA_LEN,
+    #     0, 0, 0, 0
+    # ])
     positionerIDs = positionerTableIn.positionerID.to_numpy()
     _xBeta = []
     _la = []
@@ -177,6 +180,18 @@ def fitCalibs(positionerTableIn, positionerTableMeas, disabledRobots=None, keepF
 
         print("calibrating positioner", positionerID)
         _df = positionerTableMeas[positionerTableMeas.positionerID==positionerID]
+
+        # _dr = numpy.sqrt((_df.xWokReportMetrology-_df.xWokMeasMetrology)**2  + (_df.xWokReportMetrology-_df.xWokMeasMetrology)**2)
+        # nbefore = len(_df)
+
+        # _df["_dr"] = _dr
+        # _df = _df[_df._dr < 0.5]
+        # print("before", nbefore, "after", len(_df))
+        # import pdb; pdb.set_trace()
+        # start initial guess from current positioner coordinates
+        _temp = positionerTableIn[positionerTableIn.positionerID==positionerID]
+        x0 = [float(_temp.metX), float(_temp.alphaArmLen), float(_temp.alphaOffset), float(_temp.betaOffset), float(_temp.dx), float(_temp.dy)]
+
         args = (
             positionerID,
             _df.alphaReport.to_numpy(),
@@ -206,7 +221,7 @@ def fitCalibs(positionerTableIn, positionerTableMeas, disabledRobots=None, keepF
 
     positionerTableOut = positionerTableIn.copy()
     dxBoss = positionerTableOut.bossX.to_numpy() - positionerTableOut.metX.to_numpy()
-    dxAp = positionerTableOut.apX.to_numpy() - positionerTableOut.apX.to_numpy()
+    dxAp = positionerTableOut.apX.to_numpy() - positionerTableOut.metX.to_numpy()
     positionerTableOut["metX"] = _xBeta
     positionerTableOut["alphaArmLen"] = _la
     positionerTableOut["alphaOffset"] = _alphaOffDeg
@@ -255,6 +270,10 @@ def plotDistances(pt_meas, title=""):
     sns.boxplot(x=positionerID, y=dr)
     plt.title(title)
 
+    plt.figure(figsize=(13,8))
+    sns.boxplot(x=pt_meas.positionerID, y=pt_meas.aperflux)
+    plt.title("flux")
+
     plt.figure(figsize=(8,8))
     plt.quiver(xReport, yReport, dx, dy ,angles="xy", units="xy", scale=.01, width=1)
     plt.title(title)
@@ -265,68 +284,68 @@ def plotDistances(pt_meas, title=""):
     plt.title(title)
 
 
-def getPTM(imgs):
-    dfList = []
-    for img in imgs:
-        ff = fits.open(img)
-        ptm = Table(ff["POSITIONERTABLEMEAS"].data).to_pandas()
-        toks = img.strip(".fits").split("-")
-        imgNum = int(toks[-1])
-        mjd = int(img.split("/")[-2])
-        ptm["fvcImgNum"] = imgNum
-        ptm["mjd"] = mjd
-        dfList.append(ptm)
+# def getPTM(imgs):
+#     dfList = []
+#     for img in imgs:
+#         ff = fits.open(img)
+#         ptm = Table(ff["POSITIONERTABLEMEAS"].data).to_pandas()
+#         toks = img.strip(".fits").split("-")
+#         imgNum = int(toks[-1])
+#         mjd = int(img.split("/")[-2])
+#         ptm["fvcImgNum"] = imgNum
+#         ptm["mjd"] = mjd
+#         dfList.append(ptm)
 
-    return pandas.concat(dfList)
-
-
-def massage(df):
-    df["xWokBlindErr"] = df.xWokReportMetrology - df.xWokMeasMetrology
-    df["yWokBlindErr"] = df.yWokReportMetrology - df.yWokMeasMetrology
-    df["rWokBlindErr"] = numpy.sqrt(df.xWokBlindErr**2+df.yWokBlindErr**2)
-    # broken met fibers have > 5mm error on average
-    df_m = df[["positionerID", "rWokBlindErr"]].groupby("positionerID").median().reset_index()
-    # brokenMets = list(set(df_m[df_m.rWokBlindErr > 5]["positionerID"])) hardcode instead
-    brokenMets = [802, 460, 846, 1049, 639] #985,
-
-    # drop brokenMets
-    print(brokenMets)
-    df = df[~df.positionerID.isin(brokenMets)]
-    fullDisable = [201, 478, 503, 535, 1231, 716, 639, 802, 985, 846, 460, 995, 1049, 1246, 1290, 1026, 1202]
-
-    dfList = []
-    imgs1231 = numpy.arange(1,28)
-    # handle special robots that were disabled at different times throughout the scan
-    for name, group in df.groupby("positionerID"):
-        if name == 1231:
-            group = group[group.mjd==60658]
-            group = group[group.fvcImgNum.isin(imgs1231)]
-            dfList.append(group)
-        elif name == 985:
-            group = group[group.mjd==60665]
-            dfList.append(group)
-        elif name in fullDisable:
-            # only use data from first two MJDS
-            for n2, g2 in group.groupby("mjd"):
-                if n2 == 60663:
-                    continue
-                if n2 == 60658:
-                    g2 = g2[~g2.fvcImgNum.isin(imgs1231)]
-
-                dfList.append(g2)
-        else:
-            # use images from all mjds
-            for n2, g2 in group.groupby("mjd"):
-                if n2 == 60658:
-                    g2 = g2[~g2.fvcImgNum.isin(imgs1231)]
-                # if n2 == 60663:
-                #     g2 = g2[g2.fvcImgNum < 35]
-
-                dfList.append(g2)
+#     return pandas.concat(dfList)
 
 
-    df = pandas.concat(dfList)
-    return df, brokenMets
+# def massage(df):
+#     df["xWokBlindErr"] = df.xWokReportMetrology - df.xWokMeasMetrology
+#     df["yWokBlindErr"] = df.yWokReportMetrology - df.yWokMeasMetrology
+#     df["rWokBlindErr"] = numpy.sqrt(df.xWokBlindErr**2+df.yWokBlindErr**2)
+#     # broken met fibers have > 5mm error on average
+#     df_m = df[["positionerID", "rWokBlindErr"]].groupby("positionerID").median().reset_index()
+#     # brokenMets = list(set(df_m[df_m.rWokBlindErr > 5]["positionerID"])) hardcode instead
+#     brokenMets = [802, 460, 846, 1049, 639] #985,
+
+#     # drop brokenMets
+#     print(brokenMets)
+#     df = df[~df.positionerID.isin(brokenMets)]
+#     fullDisable = [201, 478, 503, 535, 1231, 716, 639, 802, 985, 846, 460, 995, 1049, 1246, 1290, 1026, 1202]
+
+#     dfList = []
+#     imgs1231 = numpy.arange(1,28)
+#     # handle special robots that were disabled at different times throughout the scan
+#     for name, group in df.groupby("positionerID"):
+#         if name == 1231:
+#             group = group[group.mjd==60658]
+#             group = group[group.fvcImgNum.isin(imgs1231)]
+#             dfList.append(group)
+#         elif name == 985:
+#             group = group[group.mjd==60665]
+#             dfList.append(group)
+#         elif name in fullDisable:
+#             # only use data from first two MJDS
+#             for n2, g2 in group.groupby("mjd"):
+#                 if n2 == 60663:
+#                     continue
+#                 if n2 == 60658:
+#                     g2 = g2[~g2.fvcImgNum.isin(imgs1231)]
+
+#                 dfList.append(g2)
+#         else:
+#             # use images from all mjds
+#             for n2, g2 in group.groupby("mjd"):
+#                 if n2 == 60658:
+#                     g2 = g2[~g2.fvcImgNum.isin(imgs1231)]
+#                 # if n2 == 60663:
+#                 #     g2 = g2[g2.fvcImgNum < 35]
+
+#                 dfList.append(g2)
+
+
+#     df = pandas.concat(dfList)
+#     return df, brokenMets
 
 if __name__ == "__main__":
 
@@ -532,10 +551,14 @@ if __name__ == "__main__":
     # imgStart = 4
     # imgEnd = 42
 
+    # dd = {
+    #     60931: [4,42],
+    #     60931: [58,84],
+    #     60932: [3,107]
+    # }
+
     dd = {
-        60931: [4,42],
-        60931: [58,84],
-        60932: [3,107]
+        60948: [7,48]
     }
 
 
@@ -552,7 +575,7 @@ if __name__ == "__main__":
 
 
     positionerTableOut = fitCalibs(pt, df)
-    positionerTableOut.to_csv("positionerTable.apo.danger2025.winpos.f2f.csv", index_label="id")
+    positionerTableOut.to_csv("positionerTable.apo.danger2025.winpos.dither.f2f.csv", index_label="id")
 
     df = processImgs("stage1", imgList, pt=positionerTableOut)
     df.to_csv("dfdanger.csv")

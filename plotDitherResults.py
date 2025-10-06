@@ -44,6 +44,30 @@ def merge_all(mjds, suffix="", site=""):
         dfList.append(group)
 
     df = pandas.concat(dfList)
+
+    # remove bogus fits
+    df = df[df.fluxAmpDitherFit > 0]
+    # plot histogram of ditherFits
+    sigclip = 3
+    dfList = []
+    for n, g in df.groupby(["configID", "camera"]):
+        sabs = numpy.abs(g.sigmaWokDitherFit)
+        sm = numpy.mean(sabs)
+        sstd = numpy.std(sabs)
+        g = g[(sabs >= sm - sstd*sigclip) & (sabs <= sm + sstd*sigclip)]
+        dfList.append(g)
+
+    #     _g = g.groupby(["fiberID", "camera"]).first().reset_index()
+    #     plt.figure()
+    #     plt.hist(numpy.abs(_g.sigmaWokDitherFit), bins=100)
+    #     plt.xlabel("sigma wok dither fit")
+    #     plt.title(str(n))
+
+    # plt.show()
+    # import pdb; pdb.set_trace()
+
+
+    df = pandas.concat(dfList)
     # ignore configID 18717 (an apo field that seemed bad?)
     # df = df[df.configID != 18717]
     # throw out data with unsuccessful fits
@@ -95,8 +119,9 @@ def plotOne(df, xCol,yCol,dxCol,dyCol,xlabel,ylabel):
     median = numpy.median(dr)
 
     cp = sns.color_palette("husl", len(set(df.configID)))
+    # cp = sns.color_palette("husl", len(set(df.fvcImgNum)))
 
-    for name, group in df.groupby("configID"):
+    for name, group in df.groupby(["configID"]):
         color = cp[ii]
         ii += 1
         plt.quiver(
@@ -116,7 +141,7 @@ def plotAll(mjd=None, betaArmUpdate=None):
     df = pandas.read_csv("ditherFit_all_merged.csv")
     if mjd is not None:
         df = df[df.mjd.isin(mjd)]
-    print(set(df.fvcIPA))
+    print("rotator angles", set(df.fvcIPA))
     nConfigs = len(set(df.configID))
 
     xSky = df.xWokDitherFit.to_numpy()
@@ -166,13 +191,27 @@ def plotAll(mjd=None, betaArmUpdate=None):
         pt = calibration.positionerTable.reset_index()
         # how many measurements are we averaging over for each robots?
         for name, group in df.groupby("positionerID"):
-            print(name, "averaged over", len(group))
+            print(name, "averaged over", len(set(group.configID)))
         _dfmean = df[["positionerID", "dxBetaArm", "dyBetaArm"]].groupby("positionerID").mean().reset_index()  # warning only boss fibers here!
+        # what's the median dxyBoss offset
+
         cols = pt.columns.to_list()
         ptNew = pt.merge(_dfmean, how="outer", on="positionerID")
         ptNew = ptNew.fillna(value=0)
         ptNew["bossX"] = ptNew.bossX - ptNew.dxBetaArm
         ptNew["bossY"] = ptNew.bossY - ptNew.dyBetaArm
+
+
+
+        # # hack in median for robot 1304, it was too far out to calibrate
+        # _mdx = numpy.median(ptNew.bossX - ptNew.metX)
+        # _mdy = numpy.median(ptNew.bossY - ptNew.metY)
+        # print(ptNew[ptNew.positionerID==1304]["bossX"])
+        # ptNew.loc[ptNew.positionerID==1304, "bossX"] = float(ptNew[ptNew.positionerID==1304]["metX"]) + _mdx
+        # ptNew.loc[ptNew.positionerID==1304, "bossY"] = float(ptNew[ptNew.positionerID==1304]["metY"]) + _mdy
+        # print(ptNew[ptNew.positionerID==1304]["bossX"])
+
+
         ptNew = ptNew[cols]
         ptNew.to_csv(betaArmUpdate, index_label="id")
         # import pdb; pdb.set_trace()
@@ -190,10 +229,39 @@ def plotAll(mjd=None, betaArmUpdate=None):
 
     plotOne(df, "xWok", "yWok", "dxBetaArmFit", "dyBetaArmFit", "x wok (mm)", "y wok (mm)")
 
+    df["drBetaArmFit"] = numpy.sqrt(df.dxBetaArmFit**2+df.dyBetaArmFit**2)
+
+    plt.figure()
+    sns.boxplot(x="fiberID", y="drBetaArmFit", data=df)
+
+    # plot xys for fiber positions
+    plt.figure()
+    plt.plot(ptNew.apX, ptNew.apY, '.r')
+    plt.plot(ptNew.bossX, ptNew.bossY, '.b')
+    plt.plot(ptNew.metX, ptNew.metY, '.b')
+    plt.axis("equal")
+    plt.axhline(0, color="black", alpha=0.1)
+
+    plt.figure()
+    plt.plot(ptNew.apX-ptNew.metX, ptNew.apY-ptNew.metY, '.r')
+    plt.plot(ptNew.bossX-ptNew.metX, ptNew.bossY-ptNew.metY, '.b')
+    plt.axis("equal")
+
+    print(df[df.fiberID==187]["positionerID"]) # 1304
+    _ptn = ptNew[ptNew.positionerID==1304]
+    plt.plot(float(_ptn.bossX)-float(_ptn.metX), float(_ptn.bossY)-float(_ptn.metY), 'o', mfc="none", mec="tab:orange")
+    plt.plot(float(_ptn.apX)-float(_ptn.metX), float(_ptn.apY)-float(_ptn.metY), 'o', mfc="none", mec="tab:orange")
+    plt.plot(numpy.median(ptNew.bossX-ptNew.metX), numpy.median(ptNew.bossY-ptNew.metY), 'x', color="cyan")
+    plt.plot(numpy.median(ptNew.apX-ptNew.metX), numpy.median(ptNew.apY-ptNew.metY), 'x', color="cyan")
+    plt.axhline(0, color='black', alpha=0.1)
+
+
+
 
 
 def plotFVCdistortion(mjd=None, fiducialOut=None, includeVar=True):
     df = pandas.read_csv("ditherFit_all_merged.csv")
+    df = df[df.fluxAmpDitherFit > 0]
     if mjd is not None:
         df = df[df.mjd.isin(mjd)]
     nConfigs = len(set(df.configID))
@@ -221,9 +289,9 @@ def plotFVCdistortion(mjd=None, fiducialOut=None, includeVar=True):
     df["rWokMetDithFit"] = numpy.sqrt(df.xWokMetDithFit**2+df.yWokMetDithFit**2)
 
     # compute variances for xyDither fits
-    _df = df[["fiberID", "configID", "camera", "xWokDitherFit_loo", "yWokDitherFit_loo"]]
-    _df = _df.groupby(["fiberID", "configID", "camera"]).var().reset_index()
-    df = df.merge(_df, on=["fiberID", "configID", "camera"], suffixes=(None, "_var"))
+    _df = df[["fiberID", "configID", "camera", "fvcImgNum", "xWokDitherFit_loo", "yWokDitherFit_loo"]]
+    _df = _df.groupby(["fiberID", "configID", "camera", "fvcImgNum"]).var().reset_index()
+    df = df.merge(_df, on=["fiberID", "configID", "fvcImgNum", "camera"], suffixes=(None, "_var"))
 
     dfList = []
     dfFIFList = []
@@ -233,7 +301,7 @@ def plotFVCdistortion(mjd=None, fiducialOut=None, includeVar=True):
     thetaTest = numpy.random.uniform(0, numpy.pi*2, size=1000)
     xs = numpy.sqrt(rTest)*numpy.cos(thetaTest)
     ys = numpy.sqrt(rTest)*numpy.sin(thetaTest)
-    for name, group in df.groupby(["configID"]):
+    for name, group in df.groupby(["configID", "fvcImgNum"]):
         if sum(numpy.isnan(group.xWokDitherFit_loo.to_numpy())) > 0:
             print("skipping due to nans", group["mjd"].iloc[0], name)
             continue
@@ -338,6 +406,7 @@ def plotFVCdistortion(mjd=None, fiducialOut=None, includeVar=True):
             }
         )
         df_test["configID"] = name[0]
+        df_test["fvcImgNum"] = name[1]
         for ii, coeff in enumerate(coeffs):
             df_test["C%i"%ii] = coeff
 
@@ -354,13 +423,13 @@ def plotFVCdistortion(mjd=None, fiducialOut=None, includeVar=True):
     dfXYTest["dym"] = dfXYTest.dy - dfXYTest.dy_m
     dfXYTest["drm"] = numpy.sqrt(dfXYTest.dxm**2+dfXYTest.dym**2)
 
-    for name, group in dfXYTest.groupby("configID"):
+    for name, group in dfXYTest.groupby(["configID", "fvcImgNum"]):
         plt.figure(figsize=(8,8))
         plt.quiver(
             group.x, group.y, group.dxm, group.dym, angles="xy", units="xy", width=1, scale=0.003
         )
         rms = numpy.sqrt(numpy.mean(group.drm**2))*1000
-        plt.title("configID=%i rms = %.1f um"%(name, rms))
+        plt.title("configID=%i fvcImgNum=%i rms = %.1f um"%(name[0], name[1], rms))
         plt.xlabel("x wok (mm)")
         plt.ylabel("y wok (mm)")
         plt.axis("equal")
@@ -865,10 +934,43 @@ if __name__ == "__main__":
 
 
     ## APO sept 2025 (post shutdown)####
-    merge_all(mjds=[60939], site="apo") # 60606, 60629,
-    plotAll(mjd=[60939], betaArmUpdate="junk.csv")
-    plotGFADistortion(mjd=[60939], filename="junk.csv")
-    plotFVCdistortion(mjd=[60939], fiducialOut="junk.csv", includeVar=True)
+    # plotFVCdistortion(mjd=[60939], fiducialOut="junk.csv", includeVar=True)
+
+    # newfif = pandas.read_csv("junk.csv")
+    # oldfif = pandas.read_csv("/Users/csayres/code/fps_calibrations/apo/wok_calibs/sloanFlatCMM/fiducialCoords.csv")
+
+    # plt.figure()
+    # plt.hist(newfif.xyVar, label="new", bins=25, histtype="step")
+    # plt.figure()
+    # plt.hist(oldfif.xyVar, label="old", bins=25, histtype="step")
+    # plt.legend()
+    # # plt.show()
+
+    # nn = newfif.merge(oldfif, on="id")
+    # nn["dx"] = nn.xWok_x - nn.xWok_y
+    # nn["dy"] = nn.yWok_x - nn.yWok_y
+    # nn["dr"] = numpy.sqrt(nn.dx**2+nn.dy**2)
+
+    # plt.figure()
+    # plt.hist(nn.dr)
+    # plt.show()
+
+    # import pdb; pdb.set_trace()
+
+    # first round of 5 dithers post 2025 shutdown at apo
+    # merge_all(mjds=[60939], site="apo") # 60606, 60629,
+    # plotAll(mjd=[60939], betaArmUpdate="positionerTable.betaupdate.csv")
+    # plotGFADistortion(mjd=[60939], filename="junk.csv")
+    # plotFVCdistortion(mjd=[60939], fiducialOut="fiducialTable.ditherup.csv", includeVar=True)
+
+    # 6 more dithers after initial calibration set at apo
+    merge_all(mjds=[60950, 60952], site="apo") # 60606, 60629,
+    plotAll(mjd=[60950, 60952], betaArmUpdate="positionerTable.betaupdate.csv")
+    plotGFADistortion(mjd=[60950, 60952], filename="junk.csv")
+    plotFVCdistortion(mjd=[60950, 60952], fiducialOut="fiducialTable.ditherup.csv", includeVar=True)
+
+
+
 
 
 
